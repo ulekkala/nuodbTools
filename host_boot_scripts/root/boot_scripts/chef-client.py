@@ -5,8 +5,7 @@ from email.mime.text import MIMEText
 
 max_tries = 10
 wait_in_between_tries = 30 # seconds
-wait_in_between_tries = 0 # seconds
-
+alert_email = "rkourtz@nuodb.com"
 
 commands = [[["chef-client","-S https://chef"], False], [["service","nuoagent","status"], False]]
 f = tempfile.NamedTemporaryFile()
@@ -41,9 +40,9 @@ if not overall_success:
   msg = MIMEText(mailbody)
   msg['Subject'] = "Error while bootstrapping " + os.environ['HOSTNAME']
   msg['From'] = "bootstrap@localhost"
-  msg['To'] = "rkourtz@nuodb.com"
+  msg['To'] = alert_email
   s = smtplib.SMTP("localhost", "25")
-  s.sendmail("bootstrap@nuodbcloud.net", ["rkourtz@nuodb.com"], msg.as_string())
+  s.sendmail("bootstrap@nuodbcloud.net", [alert_email], msg.as_string())
   s.quit()
 
 f.close()
