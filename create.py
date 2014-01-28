@@ -3,7 +3,7 @@ import nuodbcluster, os, sys, time
 
 subnets = ["subnet-7b4b720f", "subnet-21dac443", "subnet-21dac443"]
 security_group_ids = ['sg-e40dec81', 'sg-63f31206']
-hosts = 3
+hosts = 2
 
 c = {}
 with open('./credentials') as f:

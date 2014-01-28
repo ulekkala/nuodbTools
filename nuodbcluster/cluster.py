@@ -47,12 +47,23 @@ class NuoDBCluster:
         basename = "db"+str(increment)
       else:
         basename = name
-        increment = random.randrange(1,4)
+        increment = random.randrange(0,len(subnets))
       host = ".".join([basename, self.cluster_name, zone])
       fqdn = ".".join([host, self.dns_domain])
+      # Generate data for chef... is it a broker? peers?
+      if len(self.db['customers'][self.cluster_name][zone]['brokers']) < 1:
+        chef_data = {"run_list": "recipe[nuodb]", "nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": True, "automationTemplate": "Minimally Redundant", "altAddr": "", "brokers": []}}
+        self.db['customers'][self.cluster_name][zone]['brokers'].append(fqdn)
+      else:
+        if len(self.db['customers'][self.cluster_name][zone]['brokers']) < 2:
+          chef_data = {"run_list": "recipe[nuodb]", "nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "automationTemplate": "Minimally Redundant", "altAddr": "", "brokers": self.db['customers'][self.cluster_name][zone]['brokers']}}
+          self.db['customers'][self.cluster_name][zone]['brokers'].append(fqdn)
+        else:
+          chef_data = {"run_list": "recipe[nuodb]", "nuodb": {"is_broker": False, "enableAutomation": False, "enableAutomationBootstrap": False, "automationTemplate": "Minimally Redundant", "altAddr": "", "brokers": self.db['customers'][self.cluster_name][zone]['brokers']}}
       stub[host] = {"fqdn": fqdn}
+      stub[host]['chef_data'] = chef_data
       stub[host]['obj'] = nuodbaws.NuoDBhost(host, EC2Connection=self.zones[zone].connection, Route53Connection=self.route53, dns_domain=self.dns_domain, domain = self.domain_name, domainPassword = self.domain_password, advertiseAlt = True)
-      stub[host]['obj'].create(ami=ami, key_name=self.ssh_key, instance_type=self.instance_type, security_group_ids=security_group_ids, subnet = subnets[increment % len(subnets)], getPublicAddress = True)
+      stub[host]['obj'].create(ami=ami, key_name=self.ssh_key, instance_type=self.instance_type, security_group_ids=security_group_ids, subnet = subnets[increment % len(subnets)], getPublicAddress = True, ChefUserData = chef_data)
       return host
     def dump_db(self):
       return self.db

@@ -69,9 +69,12 @@ class NuoDBhost:
         if self.ssh_execute(command) != 0:
                 return "Failed ssh execute on command " + command
             
-  def create(self, ami, key_name, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None):
+  def create(self, ami, key_name, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, ChefUserData = None):
         if not self.exists:
             userdata = {"hostname": ".".join([self.name, self.dns_domain])}
+            if ChefUserData != None:
+              self.chefdata = ChefUserData
+              userdata['chef'] = ChefUserData
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
             reservation = self.EC2Connection.run_instances(ami, key_name=key_name, instance_type=instance_type, user_data=base64.b64encode(json.dumps(userdata)), network_interfaces=interface_collection) 
