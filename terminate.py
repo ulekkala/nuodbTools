@@ -1,4 +1,4 @@
-import nuodbcluster, os, sys, time
+import nuodbcluster
 
 c = {}
 with open('./credentials') as f:
