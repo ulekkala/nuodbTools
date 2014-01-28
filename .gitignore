@@ -1,1 +1,5 @@
 /credentials
+*.pyc
+/data/*.db
+.*project
+

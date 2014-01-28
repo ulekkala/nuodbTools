@@ -1,8 +1,5 @@
 import nuodbcluster, os, sys, time
 
-
-subnets = ["subnet-7b4b720f", "subnet-21dac443", "subnet-21dac443"]
-
 c = {}
 with open('./credentials') as f:
   lines = f.read().splitlines()
