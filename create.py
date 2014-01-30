@@ -11,7 +11,6 @@ mycluster =  nuodbcluster.NuoDBCluster(
                                        dns_domain = c['dns_domain'], domain_name = c['domain_name'],
                                        domain_password = c['domain_password'], instance_type = c['instance_type'], 
                                        nuodb_license = c['license'])
-print mycluster.dump_db()
 for zone in c['zones']:
   mycluster.connect_zone(zone)
   z = c['zones'][zone]
@@ -19,7 +18,8 @@ for zone in c['zones']:
     root_name = "db" + str(i)
     myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids']) # Mark the number of nodes to be created
     print "Added %s" % myserver
-    
+
+print "Booting the cluster"
 mycluster.create_cluster() # Actually spins up the nodes.
 for myserver in mycluster.get_hosts():
   sys.stdout.write("Waiting for %s to start" % myserver)
@@ -30,5 +30,4 @@ for myserver in mycluster.get_hosts():
 for myserver in mycluster.get_hosts():
   print "Setting DNS for %s" % myserver
   mycluster.get_host(myserver).dns_set()
-print mycluster.dump_db()
 mycluster.exit()

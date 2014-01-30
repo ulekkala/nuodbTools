@@ -65,6 +65,8 @@ class NuoDBCluster:
       chef_data["nuodb"]['region'] = zone
       chef_data["nuodb"]['monitoring'] = {"enable": True, "alert_email": self.alert_email}
       chef_data['nuodb']['license'] = self.nuodb_license
+      chef_data["nuodb"]['domain_name'] = self.domain_name
+      chef_data["nuodb"]['domain_password'] = self.domain_password
       stub[host]['chef_data'] = chef_data
       stub[host]["fqdn"] = fqdn
       stub[host]['ami'] = ami
