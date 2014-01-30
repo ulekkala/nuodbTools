@@ -9,7 +9,7 @@ class NuoDBhost:
                domain="domain", domainPassword="bird", enableAutomation=False,
                enableAutomationBootstrap=False,
                isBroker=False, portRange=48005, peers=[],
-               ssh_user="ec2-user", region=""):
+               ssh_user="ec2-user", region="default"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])

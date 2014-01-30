@@ -9,6 +9,8 @@
         "region": "someregion",
         "altAddr": "",
         "automationTemplate": "Minimally Redundant",
+        "domain_name": "domain",
+        "domain_password": "bird",
         "is_broker": true,
         "enableAutomation": true,
         "brokers": [
