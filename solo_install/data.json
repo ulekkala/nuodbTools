@@ -1,0 +1,22 @@
+{
+    "nuodb": {
+        "enableAutomationBootstrap": true,
+        "monitoring": {
+            "enable": true,
+            "alert_email": "alert@example.com"
+        },
+        "license": "",
+        "region": "someregion",
+        "altAddr": "",
+        "automationTemplate": "Minimally Redundant",
+        "is_broker": true,
+        "enableAutomation": true,
+        "brokers": [
+            "broker1.region1.example.com",
+            "broker2.region1.example.com",
+            "broker1.region2.example.com",
+            "broker2.region2.example.com"
+        ]
+    },
+    "run_list": "recipe[nuodb]"
+}
