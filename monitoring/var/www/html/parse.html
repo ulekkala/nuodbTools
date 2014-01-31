@@ -1,0 +1,53 @@
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>
+var apis = {'hosts': "hostname", 'databases': "name", "processes": "uid"};
+var d3struct = { "name": "data", "children": [] };
+var circlesize = 10;
+
+function constructD3data (name, data, level) {
+    if (typeof data != 'object') {
+      return { "name": name, "size": circlesize , "processid": data}
+    } else {
+      //console.log(level)
+      //console.log(JSON.stringify(data));
+      var children = [];
+      for (var child in data) {
+        children.push(constructD3data(child, data[child], level + 1));
+      }
+      return {"name": name, "children": children};
+    }
+}
+
+$(document).ready(function(){
+    url = "/api/hosts";
+    var children = [];
+    var request = $.ajax({
+      async: false,
+        url: url,
+        type: "GET",
+        dataType: "json"
+    })
+    .done(function(result) {
+    	var data = {}
+    	var processes = {}
+        for (var i in result) {
+        	var host = result[i]['hostname'];
+        	var zone = result[i]['tags']['region'];
+        	for (var j in result[i]['processes']) {
+        		var stub = result[i]['processes'][j];
+        		var db = stub['dbname'];
+        		var port = stub['port'];
+        		data[db] ? null : data[db] = {};	
+        		data[db][zone] ? null : data[db][zone] = {};		
+        		data[db][zone][host] ? null : data[db][zone][host] = {};
+        		data[db][zone][host][port] = stub['uid'];
+        	};
+        };
+        console.log(JSON.stringify(constructD3data(data)));
+        console.log(JSON.stringify(constructD3data('databases', data, 0)));
+    });
+});
+</script>
+<body>
+</body>

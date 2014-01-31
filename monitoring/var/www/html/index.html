@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+
+.node {
+  cursor: pointer;
+}
+
+.node:hover {
+  stroke: #000;
+  stroke-width: 1.5px;
+}
+
+.leaf circle {
+  fill: #ff7f0e;
+  fill-opacity: 1;
+}
+.leaf_bad circle {
+  fill: #fe2e2e;
+  fill-opacity: 1;
+}
+.leaf_good circle {
+  fill: #31b404;
+  fill-opacity: 1;
+}
+
+.label {
+  font: 15px "Helvetica Neue", Helvetica, Arial, sans-serif;
+  text-anchor: middle;
+  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, -1px 0 0 #fff, 0 -1px 0 #fff;
+}
+
+.label,
+.node--root,
+.node--leaf {
+  pointer-events: none;
+}
+
+</style>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+</head>
+<body>
+<table width="100%">
+<tr><td id="graph" width=1></td><td valign="top" align="left">NuoDB Monitoring Console<br/><div align="left" id="text"></div></td></tr></table>
+<script>
+
+var d3data = {};
+var processDict = {};
+var circlesize = 10;
+
+var margin = 00;
+//var outerDiameter = function() {return $(window).height() < $(window).width() / 2 ? $(window).height() : $(window).width() / 2 }; 
+var outerDiameter = $(window).height() - 30; 
+var innerDiameter = outerDiameter - margin - margin;
+console.log("Outer Diameter: " + outerDiameter);
+console.log("Inner Diameter: " + innerDiameter);
+
+var x = d3.scale.linear()
+    .range([0, innerDiameter]);
+
+var y = d3.scale.linear()
+    .range([0, innerDiameter]);
+
+var color = d3.scale.linear()
+    .domain([-1, 5])
+    .range(["rgb(255,255,255)", "rgb(200,200,200)"])
+    .interpolate(d3.interpolateHcl);
+
+var pack = d3.layout.pack()
+    .padding(2)
+    .size([innerDiameter, innerDiameter])
+    .value(function(d) { return d.size; })
+
+//var svg = d3.select("body").insert("svg")
+var svg = d3.select("#graph").insert("svg")
+    .attr("width", outerDiameter)
+    .attr("height", outerDiameter)
+  .append("g")
+    .attr("transform", "translate(" + margin + "," + margin + ")");
+
+// Helper functions
+function constructD3data (name, data, level) {
+    if (typeof data != 'object') {
+    	var processid = data;
+    	var healthy = false;
+        if (processid in processDict) {
+          if (processDict[processid]['status'] == 'RUNNING') {
+              healthy = true;
+          }
+          processDict[processid]['transactional'] ? name = "Transaction Engine on port: " +name : name = "Storage Manager on port: " +name
+        }
+      return { "name": name, "size": circlesize , "processid": processid, "healthy": healthy }
+    } else {
+      //console.log(level)
+      //console.log(JSON.stringify(data));
+      var children = [];
+      for (var child in data) {
+        children.push(constructD3data(child, data[child], level + 1));
+      }
+      return {"name": name, "children": children};
+    }
+}
+
+
+$(document).ready(function(){
+	url = "/api/hosts";
+    var children = [];
+    var request = $.ajax({
+      async: false,
+        url: url,
+        type: "GET",
+        dataType: "json"
+    })
+    .done(function(result) {
+    	var data = {}
+    	var processes = {}
+        for (var i in result) {
+        	var host = result[i]['hostname'];
+        	var zone = result[i]['tags']['region'];
+        	for (var j in result[i]['processes']) {
+        		var stub = result[i]['processes'][j];
+        		var db = stub['dbname'];
+        		var port = stub['port'];
+        		data[db] ? null : data[db] = {};	
+        		data[db][zone] ? null : data[db][zone] = {};		
+        		data[db][zone][host] ? null : data[db][zone][host] = {};
+        		data[db][zone][host][port] = stub['uid'];
+        		processDict[stub['uid']] = stub;
+        	};
+        };
+        for (var i=0; i < Math.floor(Math.random()*30) + 1; i++) {
+          var badhostname = "host"+i;
+          data['bad db'] = {"bad_zone":{badhostname:{"1000":"someid"}}};
+        };
+        console.log("Processed data from API");
+        console.log(JSON.stringify(data));
+        d3data = constructD3data('databases', data, 0);
+        console.log("Data formatted for D3");
+        console.log(JSON.stringify(d3data));
+        console.log("Process data dictionary")
+        console.log(JSON.stringify(processDict));
+    });
+
+  var root = d3data
+  var focus = root,
+      nodes = pack.nodes(root);
+
+  svg.append("g").selectAll("circle")
+  	.data(nodes)
+    .enter().append("circle")
+    //.attr("class", function(d) { return d.children ? "node" : d.info ? "leaf" : d.healthy ? "leaf_good node" : "leaf_bad node"; }) 
+    .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+    .attr("r", function(d) { return d.r; })
+    .style("fill", function(d) { return d.children ? color(d.depth) : d.healthy ? d3.rgb(102,204,51) : d3.rgb(255,51,0); })
+    //.on("click", function(d) { return zoom(focus == d ? root : d); });
+    .on("click", function(d) { return d.children ? zoom(focus == d ? root : d) : displayNode(d.processid); });
+
+  svg.append("g").selectAll("text")
+    .data(nodes)
+    .enter().append("text")
+      .attr("class", "label")
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; })
+      .style("fill-opacity", function(d) { return d.parent === root ? 1 : 0; })
+      .style("display", function(d) { return d.parent === root ? null : "none"; })
+      .text(function(d) { return d.name; });
+
+  d3.select(window)
+      .on("click", function() { zoom(root); });
+
+  function zoom(d, i) {
+    var focus0 = focus;
+    focus = d;
+
+    var k = innerDiameter / d.r / 2;
+    x.domain([d.x - d.r, d.x + d.r]);
+    y.domain([d.y - d.r, d.y + d.r]);
+    d3.event.stopPropagation();
+
+    var transition = d3.selectAll("text,circle").transition()
+        .duration(d3.event.altKey ? 7500 : 750)
+        .attr("transform", function(d) { return "translate(" + x(d.x) + "," + y(d.y) + ")"; });
+
+    transition.filter("circle")
+        .attr("r", function(d) { return k * d.r; });
+
+    transition.filter("text")
+      .filter(function(d) { return d.parent === focus || d.parent === focus0; })
+        .style("fill-opacity", function(d) { return d.parent === focus ? 1 : 0; })
+        .each("start", function(d) { if (d.parent === focus) this.style.display = "inline"; })
+        .each("end", function(d) { if (d.parent !== focus) this.style.display = "none"; });
+  }
+  function displayNode(processid) {
+    retval = "";
+    stub = processDict[processid];
+    for (var element in stub) {
+        retval += element + ": " + stub[element] + "\n";
+    }
+    document.getElementById("text").innerHTML = "<pre>" + retval + "</pre>";
+  }
+	
+	d3.select(self.frameElement).style("height", outerDiameter + "px");
+});
+</script>
+</body>
+</html> 
