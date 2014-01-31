@@ -1,15 +1,10 @@
-####
-NuoDB DataBase As A Service cluster creation scripts
-####
 
-Basic toolset for bringing up a NuoDB cluster. See create.py and terminate.py for usage examples.
+NuoDB DataBase As A Service cluster creation tools
+* Basic toolset for bringing up a NuoDB cluster. See create.py and terminate.py for usage examples.
 
-
-# How to use Nuodb AWS cluster creation scripts:
-************
+## How to use Nuodb AWS cluster creation scripts:
 
 ## Preparation:
-************
 * DNS Setup
   * These scripts assume you have a domain that has its records hosted in [Amazon's Route53][http://aws.amazon.com/route53/] and that your AWS credentials have the ability to modify that account. Please see the Route53 documents for how to achieve this.
   * Determine which regions to use
@@ -24,7 +19,6 @@ Basic toolset for bringing up a NuoDB cluster. See create.py and terminate.py fo
 
 
 ## Execution:
-************
 * Make sure you have python installed
 * Install [Boto][https://github.com/boto/boto/tree/master]
 * Git clone this repo
