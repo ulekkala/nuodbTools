@@ -1,15 +1,9 @@
-import nuodbcluster, os, sys, time
+import inspect, json, nuodbcluster, os
 
-c = {}
-with open('./credentials') as f:
-  lines = f.read().splitlines()
-  for cred in lines:
-    key, value = cred.split("=")
-    c[key.strip().lower()] = value.strip()
+with open('./config.json') as f:
+  c = json.loads(f.read())
+  f.close()
 
-mycluster =  nuodbcluster.NuoDBCluster(aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], dns_domain = c['dns_domain'])
-print mycluster.dump_db()
-mycluster.connect_zone(c['zone'])
-mycluster.terminate_all_hosts()
-print mycluster.dump_db()
+mycluster =  nuodbcluster.NuoDBCluster(aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], cluster_name = c['cluster_name'])
+mycluster.terminate_hosts()
 mycluster.exit()

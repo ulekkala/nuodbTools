@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style type="text/css">
+.nodeok { 
+  background-color:#e5eecc;
+  border:1px solid gray;
+  font-family: sans-serif;
+  height: auto;
+  padding:2px;
+  text-align:top;
+  width:auto;
+}
+.nodeerror { 
+  background-color:red;
+  border:1px solid gray;
+  font-family: sans-serif;
+  color: white;
+  height: auto;
+  padding:2px;
+  text-align:top;
+  width:auto;
+}
+.title {
+  background-color:#f0ffff;
+  border:1px solid black;
+  font-family: sans-serif;
+  color: blade;
+  font-family: sans-serif;
+  height: auto;
+  text-align: center;
+}
+.vertical {
+  -ms-transform:rotate(270deg); /* IE 9 */
+  -moz-transform:rotate(270deg); /* Firefox */
+  -webkit-transform:rotate(270deg); /* Safari and Chrome */
+  -o-transform:rotate(270deg); /* Opera */
+}
+</style> 
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<script>
+$(document).ready(function(){
+  var w = 1280;
+  var h = 1024;
+  var x = 0;
+  var y = 100;
+  var dataset = [];
+  var num_of_bars = Math.floor((Math.random()*10)+1);
+  for (var i=0; i <= num_of_bars; i++) {
+    var val = Math.floor((Math.random()*90)+1);
+    dataset.push(val);
+    console.log(val);
+  };
+  console.log(dataset);
+  //var dataset = [ 5, 10, 13, 19, 21, 25, 22, 18, 15, 13, 11, 12, 15, 20, 18, 17, 16, 18, 23, 25 ];
+  var svg = d3.select("body")
+              .append("svg")
+              .attr("width", w)
+              .attr("height", h);
+  for (var i=0; i <= num_of_bars; i++) {
+    x = x+100
+    svg.append("circle")
+       //.data(dataset)
+       //.enter()
+       .style("stroke", "gray")
+       .style("fill", "white")
+       /*
+       .append("circle")
+       .attr("x", function(d, i) {
+          return i * (w / dataset.length);
+       })
+       .attr("y", function(d) {
+            return h - (d * 4) + 14;  //15 is now 14
+        })
+       .attr("width", 20)
+       .attr("height", 100);
+       */
+       .attr("r", dataset[i])
+       .attr("cx", x)
+       .attr("cy", y)
+       .on("mousedown", changeradius)
+       .on("mouseover", function(){d3.select(this).style("fill", "aliceblue");})
+       .on("mouseout", function(){d3.select(this).style("fill", "white");})
+  }
+    function changeradius() {
+      d3.select(this)
+        .transition()
+            .delay(0)
+            .duration(1000)
+            .attr("r", (Math.random()*90)+1)
+    };
+});
+</script>
+</head>
+<body>
+
+</body>
+</html>
+
