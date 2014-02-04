@@ -1,8 +1,4 @@
 import boto.ec2
-import boto.route53
-from paramiko import SSHClient, SFTPClient
-from string import Template
-import os, socket, sys, time
 
 class NuoDBzone:
     def __init__(self, name):
