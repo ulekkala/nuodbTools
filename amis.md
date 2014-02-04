@@ -4,7 +4,7 @@
 <tr>
 <td>us-east-1</td>
 <td>Northern Virginia</td>
-<td>ami-99fdc5f0</td>
+<td>ami-1ff5cd76</td>
 <tr>
 <td>us-west-1</td>
 <td>Northern California</td>
@@ -13,7 +13,7 @@
 <tr>
 <td>us-west-2</td>
 <td>Oregon</td>
-<td>ami-f4a3c0c4</td>
+<td>ami-b8a0c388</td>
 </tr>
 <tr>
 <td>eu-west-1</td>
