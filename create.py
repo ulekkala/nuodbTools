@@ -30,4 +30,10 @@ for myserver in mycluster.get_hosts():
 for myserver in mycluster.get_hosts():
   print "Setting DNS for %s" % myserver
   mycluster.get_host(myserver).dns_set()
+print
+print "Cluster is starting up. Here are your brokers:"
+for broker in mycluster.get_brokers():
+  print broker
+print
+print "After a few minutes you should be able to control your cluster by going to http://%s:8888 " % str(mycluster.get_brokers()[0])
 mycluster.exit()
