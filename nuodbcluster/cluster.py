@@ -6,7 +6,7 @@ Created on Jan 28, 2014
 
 import boto.route53
 import nuodbaws
-import inspect, json, os, random, shelve, time
+import inspect, json, os, random, shelve, string, time
 
 class NuoDBCluster:
     
@@ -91,7 +91,15 @@ class NuoDBCluster:
         for host in sorted(stub):
           # Now that all processes are known we can populate each node with a list of brokers
           stub[host]['chef_data']['nuodb']['brokers'] = self.db['customers'][self.cluster_name]['brokers']
-          obj = stub[host]['obj'].create(ami=stub[host]['ami'], key_name=self.ssh_key, instance_type=self.instance_type, security_group_ids=stub[host]['security_group_ids'], subnet = stub[host]['subnet'], getPublicAddress = True, ChefUserData = stub[host]['chef_data'])
+          template_vars = dict(
+                              hostname = stub[host]["fqdn"],
+                              chef_json = json.dumps(stub[host]['chef_data'])
+                              )
+          f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.sh"]))
+          template = string.Template(f.read())
+          f.close()
+          userdata = template.substitute(template_vars)
+          obj = stub[host]['obj'].create(ami=stub[host]['ami'], key_name=self.ssh_key, instance_type=self.instance_type, security_group_ids=stub[host]['security_group_ids'], subnet = stub[host]['subnet'], getPublicAddress = True, userdata = userdata)
           if obj.status() != "running":
             time.sleep(30) #Wait 30 seconds in between node starts
  

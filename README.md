@@ -8,7 +8,7 @@ NuoDB DataBase As A Service cluster creation tools
 * DNS Setup
   * These scripts assume you have a domain that has its records hosted in [Amazon's Route53](http://aws.amazon.com/route53/) and that your AWS credentials have the ability to modify that account. Please see the Route53 documents for how to achieve this.
   * Determine which regions to use
-  * Amazon has (as of this writing) 8 different regions. You should determine which zones you wish to use and take note of the AMIs for each one. The appropriate AMIs can be found [here](https://github.com/nuodb/dbaas/blob/master/amis.md).
+  * Amazon has (as of this writing) 8 different regions. You should determine which zones you wish to use and take note of the AMIs for each one. If you decide to use the default Amazon AMIs you can find the latest [here](http://aws.amazon.com/amazon-linux-ami/). ALWAYS USE A 64 BIT AMI.
   * In each region you should determine the subnets for each zone you want to use. Amazon subnet IDs are in the format 'subnet-aaaaaaaa'. You can determine available subnets by using a URL similar to this one and changing the region: `https://console.aws.amazon.com/vpc/home?region=ap-southeast-1#s=subnets`
   * You may use multiple subnets from each region if you like. Instances will be evenly distributed over the subnets.
 * Security Zones
