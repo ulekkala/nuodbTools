@@ -17,7 +17,7 @@ class NuoDBhost:
 
     for reservation in self.EC2Connection.get_all_reservations():
       for instance in reservation.instances:
-        if instance.__dict__['tags']['Name'] == name and instance.state == 'running':
+        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
           self.exists = True
           self.instance = instance
           self.update_data()              
