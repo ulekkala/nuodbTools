@@ -6,7 +6,7 @@ Created on Jan 28, 2014
 
 import boto.route53
 import nuodbaws
-import chef, inspect, json, os, random, shelve, time
+import inspect, json, os, random, shelve, time
 
 class NuoDBCluster:
     
@@ -101,6 +101,12 @@ class NuoDBCluster:
     def exit(self):
       self.db.close()
     
+    def get_brokers(self):
+      try:
+        return self.db['customers'][self.cluster_name]['brokers']
+      except:
+        return []
+      
     def get_host(self, host_id):
       name, customer, zone = host_id.split(".")
       if host_id in self.db['customers'][customer]['zones'][zone]['hosts']:

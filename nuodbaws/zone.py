@@ -1,8 +1,4 @@
 import boto.ec2
-import boto.route53
-from paramiko import SSHClient, SFTPClient
-from string import Template
-import os, socket, sys, time
 
 class NuoDBzone:
     def __init__(self, name):
@@ -28,4 +24,4 @@ class NuoDBzone:
     def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip, src_group=None, dry_run=None):
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
     def get_amis(self):
-      return self.connection.get_all_images(owners="self")
+      return self.connection.get_all_images(owners=["self", "802164393885"])
