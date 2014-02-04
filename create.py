@@ -5,7 +5,7 @@ with open('./config.json') as f:
   f.close()
 
 mycluster =  nuodbcluster.NuoDBCluster(
-                                       alert_email = c['alert_email'], 
+                                       alert_email = c['alert_email'], ssh_key = c['ssh_key'],
                                        aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
                                        brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
                                        dns_domain = c['dns_domain'], domain_name = c['domain_name'],
