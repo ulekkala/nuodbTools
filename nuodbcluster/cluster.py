@@ -59,7 +59,7 @@ class NuoDBCluster:
       else:
         chef_data = {"nuodb": {"is_broker": False, "enableAutomation": False, "enableAutomationBootstrap": False}}
       #common Chef information
-      chef_data["run_list"] = "recipe[nuodb]" 
+      chef_data["run_list"] = ["recipe[nuodb]"] 
       chef_data["nuodb"]['automationTemplate'] = "Minimally Redundant"
       chef_data["nuodb"]['altAddr'] = "" # Populate this at boot time
       chef_data["nuodb"]['region'] = zone
@@ -95,7 +95,7 @@ class NuoDBCluster:
                               hostname = stub[host]["fqdn"],
                               chef_json = json.dumps(stub[host]['chef_data'])
                               )
-          f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.sh"]))
+          f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.py"]))
           template = string.Template(f.read())
           f.close()
           userdata = template.substitute(template_vars)
@@ -151,7 +151,7 @@ class NuoDBCluster:
           host_obj.terminate()
           del self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host_obj.name]
           for idx, broker in enumerate(self.db['customers'][self.cluster_name]['brokers']):
-            if host_obj.ext_fqdn == broker:
+            if zone in broker:
               del self.db['customers'][self.cluster_name]['brokers'][idx]
         self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] = 0
      
