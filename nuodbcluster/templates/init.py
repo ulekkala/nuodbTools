@@ -29,6 +29,7 @@ if call(["grep", "-c", "$hostname", "/etc/hosts"]):
     f.close()
 chef_data = json.loads('$chef_json')
 chef_data['nuodb']['altAddr'] = get_public_ip()
+chef_data['java'] = {'jdk_version': "7"}
 chef_data['run_list'].append("recipe[users]")
 f = open("/var/chef/data.json", "w")
 f.write(json.dumps(chef_data))
