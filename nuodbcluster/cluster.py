@@ -143,7 +143,7 @@ class NuoDBCluster:
           host_obj.terminate()
           del self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host_obj.name]
           for idx, broker in enumerate(self.db['customers'][self.cluster_name]['brokers']):
-            if host_obj.ext_fqdn == broker:
+            if zone in broker:
               del self.db['customers'][self.cluster_name]['brokers'][idx]
         self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] = 0
      
