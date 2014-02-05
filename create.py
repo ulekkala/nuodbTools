@@ -1,4 +1,4 @@
-import inspect, json, nuodbcluster, os, sys, time
+import inspect, json, nuodbcluster, os, sys, time, urllib2
 
 with open('./config.json') as f:
   c = json.loads(f.read())
@@ -30,10 +30,32 @@ for myserver in mycluster.get_hosts():
 for myserver in mycluster.get_hosts():
   print "Setting DNS for %s" % myserver
   mycluster.get_host(myserver).dns_set()
+mycluster.sync()
 print
 print "Cluster is starting up. Here are your brokers:"
 for broker in mycluster.get_brokers():
   print broker
 print
-print "After a few minutes you should be able to control your cluster by going to http://%s:8888 " % str(mycluster.get_brokers()[0])
+print("Waiting for an available web console")
+healthy = False
+i=0
+wait = 600 #seconds
+good_host = None
+while i < wait:
+  if not healthy:
+    for host in mycluster.get_brokers():
+      url = "http://%s:8888" % host
+      if not healthy:
+        try:
+          urllib2.urlopen(url, None, 2)
+          good_host = url
+          healthy = True
+        except:
+          pass
+    time.sleep(1)
+  i += 1
+if not healthy:
+  print "Gave up trying after %s seconds. Check the server" % str(wait)
+else:
+  print "You can now access the console at %s " % str(good_host)
 mycluster.exit()

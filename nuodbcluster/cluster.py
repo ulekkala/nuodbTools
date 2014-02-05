@@ -139,6 +139,9 @@ class NuoDBCluster:
         zones.append(zone)
       return sorted(zones)
     
+    def sync(self):
+      self.db.sync()
+      
     def terminate_hosts(self, zone = None):
       if zone == None:
         zones = self.get_zones()
