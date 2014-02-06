@@ -7,7 +7,7 @@ commands = [
             "yum -y install git",
             "yum -y install https://opscode-omnibus-packages.s3.amazonaws.com/el/6/x86_64/chef-11.8.2-1.el6.x86_64.rpm",
             "mkdir -p /var/chef/cookbooks",
-            "git clone -b hpdemo https://github.com/nuodb/nuodb-chef.git /var/chef/cookbooks/nuodb",
+            "git clone https://github.com/nuodb/nuodb-chef.git /var/chef/cookbooks/nuodb",
             "git clone https://github.com/socrata-cookbooks/java /var/chef/cookbooks/java",
             "git clone https://github.com/nuodb/chef-users.git /var/chef/cookbooks/users"
             ]
