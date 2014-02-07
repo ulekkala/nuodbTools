@@ -24,7 +24,7 @@ NuoDB DataBase As A Service cluster creation tools
 * Install [Paramiko](https://github.com/paramiko/paramiko)
 * Install [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
 * Git clone this repo
-* In the root of the newly cloned directory make a file called [config.json](config.json.example) using the data you gathered above
+* In the root of the newly cloned directory make a file called config.json from the template[config.json.example](config.json.example) using the data you gathered above
 * To create your cluster run create.py
 * To delete your cluster run terminate.py
 
