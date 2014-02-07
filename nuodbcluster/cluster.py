@@ -115,7 +115,6 @@ class NuoDBCluster:
         time.sleep(10)
       print
       self.sync()
-      
       return obj
         
         
@@ -144,7 +143,7 @@ class NuoDBCluster:
         else:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print host + " Setting peers to " + str(brokers)
-        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['brokers'] = brokers
+        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
         self.sync()
         self.__boot_host(host, zone)
  
