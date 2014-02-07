@@ -107,6 +107,7 @@ class NuoDBCluster:
         sys.stdout.write(".")
         time.sleep(30) #Wait 30 seconds in between node starts
       print
+      obj.update_data()
       print "Setting DNS for %s " % obj.ext_fqdn
       obj.dns_set()
       print "Waiting for agent on %s " % obj.ext_fqdn
