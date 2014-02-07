@@ -11,17 +11,47 @@
   "license": "",
   "ssh_key": "AWS_KeyPairName",
   "zones": {
-    "us-west-2": {
-      "ami": "ami-8ee888be",
-      "servers": 4,
-      "subnets": ["subnet-7b4b720f", "subnet-21dac443", "subnet-21dac443"],
-      "security_group_ids": ["sg-e40dec81", "sg-63f31206"]
-    },
     "us-east-1": {
       "ami": "ami-e1457b88",
-      "servers": 2,
-      "subnets": ["subnet-157d043d"],
-      "security_group_ids": ["sg-24d82041", "sg-d0c038b5"]
+      "servers": 0,
+      "subnets": ["subnet-baaaaaaa"],
+      "security_group_ids": ["sg-1a1a1a1a", "sg-1b1b1b1b"]
+    },
+    "us-west-1": {
+      "ami": "ami-a43909e1",
+      "servers": 0,
+      "subnets": ["subnet-baaaaaaa"],
+      "security_group_ids": ["sg-1a1a1a1a", "sg-1b1b1b1b"]
+    },
+    "us-west-2": {
+      "ami": "ami-8ee888be",
+      "servers": 0,
+      "subnets": ["subnet-aaaaaaaa", "subnet-aaaaaaab"],
+      "security_group_ids": ["sg-0a0a0a0a", "sg-0b0b0b0b"]
+    },
+    "eu-west-1": {
+      "ami": "ami-5256b825",
+      "servers": 0,
+      "subnets": ["subnet-aaaaaaaa", "subnet-aaaaaaab"],
+      "security_group_ids": ["sg-0a0a0a0a", "sg-0b0b0b0b"]
+    },
+    "ap-southeast-1": {
+      "ami": "ami-b4baeee6",
+      "servers": 0,
+      "subnets": ["subnet-aaaaaaaa", "subnet-aaaaaaab"],
+      "security_group_ids": ["sg-0a0a0a0a", "sg-0b0b0b0b"]
+    },
+    "ap-southeast-2": {
+      "ami": "ami-5ba83761",
+      "servers": 0,
+      "subnets": ["subnet-aaaaaaaa", "subnet-aaaaaaab"],
+      "security_group_ids": ["sg-0a0a0a0a", "sg-0b0b0b0b"]
+    },
+    "sa-east-1": {
+      "ami": "ami-c99130d4",
+      "servers": 0,
+      "subnets": ["subnet-aaaaaaaa", "subnet-aaaaaaab"],
+      "security_group_ids": ["sg-0a0a0a0a", "sg-0b0b0b0b"]
     }
   }
 }

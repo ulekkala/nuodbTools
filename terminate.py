@@ -6,4 +6,4 @@ with open('./config.json') as f:
 
 mycluster =  nuodbcluster.NuoDBCluster(aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], cluster_name = c['cluster_name'])
 mycluster.terminate_hosts()
-mycluster.exit()
+mycluster.delete_db()

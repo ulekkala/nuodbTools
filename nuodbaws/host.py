@@ -26,6 +26,24 @@ class NuoDBhost:
     command = "sudo service nuoagent " + action
     if self.ssh_execute(command) != 0:
       return "Failed ssh execute on command " + command
+    
+  def agent_running(self, ip = None):
+    while ip == None:
+      time.sleep(1)
+      self.update_data()
+      ip = self.ext_ip 
+    port = self.agentPort
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+    #print "Testing " + ip + ":" + str(port)
+    result = s.connect_ex((ip, port))
+    #print result
+    s.close()
+    if result == 0:
+      return True
+    else:
+      return False
+    
   def apply_license(self, nuodblicense):
         if not self.isBroker:
             return "Can only apply a license to a node that is a Broker"

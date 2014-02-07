@@ -22,12 +22,13 @@ def get_public_ip():
   return urllib2.urlopen(url).read()
 
 ohai = json.loads(Popen(["/usr/bin/ohai"], stdout=PIPE).communicate()[0])
+public_ip = get_public_ip()
 if call(["grep", "-c", "$hostname", "/etc/hosts"]):
     f = open("/etc/hosts", "a")
-    f.write("\t".join([ohai['ipaddress'], "$hostname" + "\n"]))
+    f.write("\t".join([public_ip, "$hostname" + "\n"]))
     f.close()
 chef_data = json.loads('$chef_json')
-chef_data['nuodb']['altAddr'] = get_public_ip()
+chef_data['nuodb']['altAddr'] = public_ip
 f = open("/var/chef/data.json", "w")
 f.write(json.dumps(chef_data))
 f.close()
