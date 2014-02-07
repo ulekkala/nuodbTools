@@ -20,19 +20,9 @@ for zone in c['zones']:
     print "Added %s" % myserver
 
 print "Booting the cluster"
+
 mycluster.create_cluster() # Actually spins up the nodes.
-for myserver in mycluster.get_hosts():
-  sys.stdout.write("Waiting for %s to start" % myserver)
-  while mycluster.get_host(myserver).status() != "running":
-    sys.stdout.write(".")
-    time.sleep(5)
-  print
-for myserver in mycluster.get_hosts():
-  print "Setting DNS for %s" % myserver
-  mycluster.get_host(myserver).dns_set()
-mycluster.sync()
-print
-print "Cluster is starting up. Here are your brokers:"
+print "Cluster has started up. Here are your brokers:"
 for broker in mycluster.get_brokers():
   print broker
 print
