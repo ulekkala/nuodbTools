@@ -26,7 +26,7 @@ class NuoDBCluster:
       self.zones = {} #store our zone connections
       #self.db.close()
     
-    def add_host(self, name, zone, ami = "", security_group_ids=[], subnets = [], agentPort = 48004 , subPortRange = 48005):
+    def add_host(self, name, zone, ami = "", security_group_ids=[], subnets = [], agentPort = 48004 , subPortRange = 48005, nuodb_rpm_url = None):
       if zone not in self.zones:
         raise Error("You must connect to a zone first before you can add a host in that zone")
       if len(subnets) == 0:
@@ -75,6 +75,8 @@ class NuoDBCluster:
         chef_data['nuodb']['license'] = self.nuodb_license
         chef_data["nuodb"]['domain_name'] = self.domain_name
         chef_data["nuodb"]['domain_password'] = self.domain_password
+        if nuodb_rpm_url != None:
+          chef_data["nuodb"]["download_url"] = nuodb_rpm_url
         stub[host]['chef_data'] = chef_data
       else:
         isBroker = stub[host]['chef_data']['nuodb']['is_broker']
