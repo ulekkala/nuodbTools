@@ -1,5 +1,8 @@
 import inspect, json, nuodbcluster, os, sys, time, urllib2
 
+# This is optional and overrides the package used for installation.
+rpm = None
+
 with open('./config.json') as f:
   c = json.loads(f.read())
   f.close()
@@ -16,7 +19,7 @@ for zone in c['zones']:
   z = c['zones'][zone]
   for i in range(0,z['servers']):
     root_name = "db" + str(i)
-    myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids']) # Mark the number of nodes to be created
+    myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = rpm) # Mark the number of nodes to be created
     print "Added %s" % myserver
 
 print "Booting the cluster"
