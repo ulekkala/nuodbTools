@@ -1,6 +1,6 @@
 import inspect, json, nuodbcluster, os, sys, time, urllib2
 
-
+# This is optional and overrides the package used for installation.
 rpm = None
 
 with open('./config.json') as f:
