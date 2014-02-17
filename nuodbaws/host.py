@@ -9,7 +9,8 @@ class NuoDBhost:
                domain="domain", domainPassword="bird", enableAutomation=False,
                enableAutomationBootstrap=False,
                isBroker=False, portRange=48005, peers=[],
-               ssh_user="ec2-user", region="default"):
+               ssh_user="ec2-user", ssh_key = None,
+               region="default"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
@@ -129,7 +130,10 @@ class NuoDBhost:
         self.ssh_connection = SSHClient()
         self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
         # self.ssh_connection.load_system_host_keys()
-        self.ssh_connection.connect(host, username=self.ssh_user)
+        if self.ssh_key != None:
+          self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_key)
+        else:
+          self.ssh_connection.connect(host, username=self.ssh_user)
  
   def health(self):
         return self.ssh_execute("sudo service nuoagent status")

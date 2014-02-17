@@ -25,3 +25,16 @@ class NuoDBzone:
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
     def get_amis(self):
       return self.connection.get_all_images(owners=["self", "802164393885", "amazon"])
+    def get_keys(self):
+      return self.connection.get_all_key_pairs()
+    def get_security_groups(self):
+      return self.connection.get_all_security_groups()
+    def get_subnets(self):
+      subnets = {}
+      networkinterfaces = self.connection.get_all_network_interfaces()
+      for networkinterface in networkinterfaces:
+        id = networkinterface.subnet_id
+        subnets[id] = {}
+        for arg in networkinterface.__dict__:
+          subnets[id][arg] = networkinterface.__dict__[arg]
+      return subnets

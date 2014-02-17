@@ -92,7 +92,9 @@ class NuoDBCluster:
                                              isBroker = isBroker)
       return host
 
-    def __boot_host(self, host, zone):
+    def __boot_host(self, host, zone, instance_type = None):
+      if instance_type == None:
+        instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
       template_vars = dict(
                           hostname = stub["fqdn"],
@@ -102,7 +104,7 @@ class NuoDBCluster:
       template = string.Template(f.read())
       f.close()
       userdata = template.substitute(template_vars)
-      obj = stub['obj'].create(ami=stub['ami'], key_name=self.ssh_key, instance_type=self.instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
+      obj = stub['obj'].create(ami=stub['ami'], key_name=self.ssh_key, instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
       port = obj.agentPort
       print "Waiting for %s to start" % obj.ext_fqdn
       if obj.status() != "running":
@@ -145,7 +147,7 @@ class NuoDBCluster:
               brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         else:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
-        print host + " Setting peers to " + str(brokers)
+        print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
         self.sync()
         self.__boot_host(host, zone)
