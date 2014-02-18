@@ -10,30 +10,16 @@ import inspect, json, os, random, shelve, string, sys, time
 
 class NuoDBCluster:
     
-    def __init__(self, 
-                 alert_email = "alert@example.com",
-                 aws_access_key = "", 
-                 aws_secret = "", 
-                 brokers_per_zone = 2,
-                 cluster_name = "default",
+    def __init__(self, aws_access_key = "", aws_secret = "", cluster_name = "default", 
+                 dns_domain="", domain_name="domain", domain_password="bird", 
+                 instance_type = "m1.large", nuodb_license = "", ssh_key = "",  
                  data_dir = "/".join([os.path.dirname(os.path.abspath(inspect.stack()[-1][1])), "data"]), 
-                 dns_domain="", 
-                 domain_name="domain", 
-                 domain_password="bird", 
-                 enable_monitoring = True,
-                 instance_type = "m1.large", 
-                 nuodb_license = "", 
-                 ssh_key = "", 
-                 ssh_keyfile = None):
+                 brokers_per_zone = 2, enable_monitoring = True, alert_email = "alert@example.com"):
       self.route53 = boto.route53.connection.Route53Connection(aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
       database_file = "/".join([data_dir, cluster_name + ".shelf"])
       args, _, _, values = inspect.getargvalues(inspect.currentframe())
       for i in args:
         setattr(self, i, values[i])
-        
-      if ssh_keyfile != None and ssh_keyfile != "":
-        if not os.path.exists(ssh_keyfile):
-          raise Error("Can not find ssh private key %s" % self.ssh_keyfile)
       
       self.database_file = database_file
       self.db = shelve.open(database_file, writeback = True)
@@ -64,20 +50,16 @@ class NuoDBCluster:
         stub[host] = {}
       # Generate data for chef... is it a broker? peers?
       agent_addr = fqdn
-      if "zones" not in self.db['customers'][self.cluster_name]:
-        self.db['customers'][self.cluster_name]['zones'] = {}
-      if zone not in self.db['customers'][self.cluster_name]['zones']:
-        self.db['customers'][self.cluster_name]['zones'][zone] = {"brokers": []}
       if "chef_data" not in stub[host]:
-        if len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < 1:
+        if "brokers" not in self.db['customers'][self.cluster_name] or len(self.db['customers'][self.cluster_name]['brokers']) < 1:
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": True, "autoconsole": {"brokers": ["localhost"]}}}
-          #self.db['customers'][self.cluster_name]['brokers'] = [agent_addr]
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": True}}
+          self.db['customers'][self.cluster_name]['brokers'] = [agent_addr]
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] =[agent_addr]
-        elif len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < int(self.brokers_per_zone):
+        elif len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < self.brokers_per_zone:
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}}}
-          #self.db['customers'][self.cluster_name]['brokers'].append(agent_addr)
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False}}
+          self.db['customers'][self.cluster_name]['brokers'].append(agent_addr)
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'].append(agent_addr)
         else:
           isBroker = False
@@ -107,11 +89,10 @@ class NuoDBCluster:
                                              domain = self.domain_name, domainPassword = self.domain_password, 
                                              advertiseAlt = True, region = zone,
                                              agentPort = agentPort, portRange = subPortRange,
-                                             isBroker = isBroker, ssh_key = self.ssh_key, ssh_keyfile = self.ssh_keyfile)
-      self.sync()
+                                             isBroker = isBroker)
       return host
 
-    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False):
+    def __boot_host(self, host, zone, instance_type = None):
       if instance_type == None:
         instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
@@ -123,7 +104,7 @@ class NuoDBCluster:
       template = string.Template(f.read())
       f.close()
       userdata = template.substitute(template_vars)
-      obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
+      obj = stub['obj'].create(ami=stub['ami'], key_name=self.ssh_key, instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
       port = obj.agentPort
       print "Waiting for %s to start" % obj.ext_fqdn
       if obj.status() != "running":
@@ -133,29 +114,15 @@ class NuoDBCluster:
       obj.update_data()
       print "Setting DNS for %s " % obj.ext_fqdn
       obj.dns_set()
-      if wait_for_health:
-        healthy = False
-        count = 0
-        tries = 60
-        wait = 10
-        print "Waiting for agent on %s " % obj.ext_fqdn
-        while not healthy or count == tries:
-          if obj.agent_running():
-            healthy = True
-          else:
-            print(".")
-            time.sleep(wait)
-          count += 1
-        if not healthy:
-          print "Cannot reach agent on %s after %s seconds. Check firewalls and the host for errors." % (obj.ext_fqdn, str(tries * wait))
-          self.sync()
-          exit(1)
-        print
-      else:
-        print "Not waiting for agent on %s, node will come up asynchronously." % obj.ext_fqdn
+      print "Waiting for agent on %s " % obj.ext_fqdn
+      while not obj.agent_running():
+        sys.stdout.write(".")
+        time.sleep(10)
+      print
       self.sync()
       return obj
-             
+        
+        
     def connect_zone(self, zone):
       self.zones[zone] = nuodbaws.NuoDBzone(zone)
       self.zones[zone].connect(aws_access_key=self.aws_access_key, aws_secret=self.aws_secret)
@@ -170,41 +137,24 @@ class NuoDBCluster:
       for host in self.get_hosts():
         obj = self.get_host(host)
         zone = obj.region
-        wait_for_health = False
         if obj.isBroker == True:
-          # If this node is a broker, then pair it with brokers outside its region if you can
-          wait_for_health = True
           brokers = []
           for idx, azone in enumerate(self.get_zones()):
             if azone != zone:
-              for broker in self.db['customers'][self.cluster_name]['zones'][azone]['brokers']:
-                brokers.append(broker)
+              brokers = self.db['customers'][self.cluster_name]['zones'][azone]['brokers']
           if len(brokers) == 0:
           # There are no other brokers in other regions found. Add another peer in this region if there is one
               brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         else:
-          #If this node isn't a broker pair it with local zone brokers
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
         self.sync()
-        self.__boot_host(host, zone, wait_for_health = wait_for_health)
+        self.__boot_host(host, zone)
  
     def delete_db(self):
       self.exit()
-      if os.path.exists(self.database_file):
-        os.remove(self.database_file)
-    
-    def delete_dns(self, zone = None):
-      if zone == None:
-        zones = self.get_zones()
-      else:
-        zones = [zone]
-      for zone in zones:
-        hosts = self.get_hosts(zone=zone)
-        for host in hosts:
-          host_obj = self.get_host(host)
-          host_obj.dns_delete()
+      os.remove(self.database_file)
       
     def dump_db(self):
       return self.db
@@ -214,11 +164,7 @@ class NuoDBCluster:
     
     def get_brokers(self):
       try:
-        brokers = []
-        for zone in self.get_zones():
-          for broker in self.db['customers'][self.cluster_name]['zones'][zone]['brokers']:
-            brokers.append(broker)
-        return brokers
+        return self.db['customers'][self.cluster_name]['brokers']
       except:
         return []
       

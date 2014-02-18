@@ -4,31 +4,17 @@ from paramiko import SSHClient, SFTPClient
 import base64, inspect, json, os, socket, string, sys, tempfile, time
 
 class NuoDBhost:
-  def __init__(self, 
-               name, 
-               EC2Connection, 
-               Route53Connection, 
-               dns_domain,
-               advertiseAlt=False, 
-               agentPort=48004, 
-               altAddr="",
-               domain="domain", 
-               domainPassword="bird", 
-               enableAutomation=False,
+  def __init__(self, name, EC2Connection, Route53Connection, dns_domain,
+               advertiseAlt=False, agentPort=48004, altAddr="",
+               domain="domain", domainPassword="bird", enableAutomation=False,
                enableAutomationBootstrap=False,
-               isBroker=False, 
-               portRange=48005, 
-               peers=[],
-               ssh_user="ec2-user", # User to ssh in as 
-               ssh_key = None, # Name of AWS Keypair
-               ssh_keyfile = None, # The private key on the local file system
+               isBroker=False, portRange=48005, peers=[],
+               ssh_user="ec2-user", ssh_key = None,
                region="default"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
     self.exists = False
-    self.int_fqdn = ".".join([self.name, "int", self.dns_domain])
-    self.ext_fqdn = ".".join([self.name, self.dns_domain])
 
     for reservation in self.EC2Connection.get_all_reservations():
       for instance in reservation.instances:
@@ -102,13 +88,13 @@ class NuoDBhost:
         if self.ssh_execute(command) != 0:
                 return "Failed ssh execute on command " + command
             
-  def create(self, ami, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
+  def create(self, ami, key_name, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
         if not self.exists:
             if userdata != None:
               self.userdata = userdata
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            reservation = self.EC2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
+            reservation = self.EC2Connection.run_instances(ami, key_name=key_name, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
             self.exists = True
             for instance in reservation.instances:
                 self.instance = instance
@@ -121,31 +107,20 @@ class NuoDBhost:
             return self
     
   def dns_delete(self):
+        self.update_data()
         zone = self.Route53Connection.get_zone(self.dns_domain)
         for fqdn in [self.int_fqdn, self.ext_fqdn]:
             if zone.find_records(fqdn, "A") != None:
                 zone.delete_a(fqdn)
-  
-  def dns_set(self, type = "A", record = None, value = None):
-        
+                
+  def dns_set(self):
+        self.update_data()
         zone = self.Route53Connection.get_zone(self.dns_domain)
-        if record != None:
-          records = {record: value}
-        else:
-          while len(self.int_ip) == 0 or len(self.ext_ip) == 0:
-            self.update_data()
-            print "Waiting for IPs..."
-            time.sleep(5)
-          records = {self.ext_fqdn: self.ext_ip}.iteritems()
-          
-        for fqdn, value in records:
-          if type == "TXT":
-            pass
-          else:
+        for fqdn, ipaddress in {self.int_fqdn: self.int_ip, self.ext_fqdn: self.ext_ip}.iteritems():
             if zone.find_records(fqdn, "A") != None:
-                zone.update_a(fqdn, value=value, ttl=60)
+                zone.update_a(fqdn, value=ipaddress, ttl=60)
             else:
-                zone.add_a(fqdn, value=value)
+                zone.add_a(fqdn, value=ipaddress)
                 
   def __get_ssh_connection(self):
         try:
@@ -155,8 +130,8 @@ class NuoDBhost:
         self.ssh_connection = SSHClient()
         self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
         # self.ssh_connection.load_system_host_keys()
-        if self.ssh_keyfile != None:
-          self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
+        if self.ssh_key != None:
+          self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_key)
         else:
           self.ssh_connection.connect(host, username=self.ssh_user)
  
@@ -216,14 +191,12 @@ class NuoDBhost:
         channel = self.ssh_connection.get_transport().open_session()
         channel.exec_command(command + " &>> /tmp/paramiko.log")
         return channel.recv_exit_status() 
-      
   def status(self):
         if self.exists:
             self.update_data()
             return self.instance.state
         else:
             return "Host does not exist"
-          
   def terminate(self):
         if self.exists:
             # self.dns_delete()
@@ -232,13 +205,13 @@ class NuoDBhost:
             return("Terminated " + self.name)
         else:
             return("Cannot terminate " + self.name + " as node does not exist.")
-          
   def update_data(self):
         self.instance.update()
         self.id = self.instance.id
         self.ext_ip = self.instance.ip_address
         self.int_ip = self.instance.private_ip_address
-        
+        self.int_fqdn = ".".join([self.name, "int", self.dns_domain])
+        self.ext_fqdn = ".".join([self.name, self.dns_domain])
         
 class TemporaryAddPolicy:
     def missing_host_key(self, client, hostname, key):
