@@ -201,7 +201,7 @@ def __main__(action = None):
             "cluster_name": { "default" : "mycluster", "prompt" : "What is the name of your cluster?"},
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
-            "dns_domain": {"default" : "myroute53domain.net", "prompt" : "Enter a Route53 domain under your account: "},
+            "dns_domain": {"default" : "None", "prompt" : "Enter a Route53 domain under your account. If you don't have one enter \"None\":"},
             "domain_name": {"default": "domain", "prompt": "What is the name of your NuoDB domain?"},
             "domain_password": {"default": "password", "prompt": "What is the admin password of your NuoDB domain?"},
             "license": {"default": "", "prompt": "Please enter your NuoDB license- or leave empty for development version:"},
@@ -294,6 +294,8 @@ def __main__(action = None):
     for broker in mycluster.get_brokers():
       print broker
     print
+    hosts = mycluster.get_hosts()
+    
     print("Waiting for an available web console")
     healthy = False
     i=0
@@ -301,8 +303,11 @@ def __main__(action = None):
     good_host = None
     while i < wait:
       if not healthy:
-        for host in mycluster.get_brokers():
-          url = "http://%s:8080" % host
+        for host_id in hosts:
+          obj = mycluster.get_host(host_id)
+          host = mycluster.get_host_address(host_id)
+          url = "http://%s:%s" % (host, obj.web_console_port)
+          print "Trying %s" % url
           if not healthy:
             try:
               urllib2.urlopen(url, None, 2)
@@ -316,7 +321,9 @@ def __main__(action = None):
       print "Gave up trying after %s seconds. Check the server" % str(wait)
     else:
       print "You can now access the console at %s " % str(good_host)
+      print "Other nodes may still be booting and will join the cluster eventually."
     mycluster.exit()
+    
   ########################
   #### Terminate a cluster
   ########################
@@ -331,12 +338,19 @@ def __main__(action = None):
                                            dns_domain = c['dns_domain'], domain_name = c['domain_name'],
                                            domain_password = c['domain_password'], instance_type = c['instance_type'], 
                                            nuodb_license = c['license'])
+    '''
     res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
     if res == "y":
       mycluster.delete_dns()
+    '''
+    for zone in c['zones']:
+      mycluster.connect_zone(zone)
+      z = c['zones'][zone]
+      for i in range(0,z['servers']):
+        root_name = "db" + str(i)
+        myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
     mycluster.terminate_hosts()
-    mycluster.delete_db()
-    mycluster.exit()
+    
   elif action == "dump":
     with open(config_file) as f:
       c = json.loads(f.read())

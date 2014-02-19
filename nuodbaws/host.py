@@ -12,6 +12,7 @@ class NuoDBhost:
                advertiseAlt=False, 
                agentPort=48004, 
                altAddr="",
+               autoconsole_port = "8888",
                domain="domain", 
                domainPassword="bird", 
                enableAutomation=False,
@@ -22,7 +23,8 @@ class NuoDBhost:
                ssh_user="ec2-user", # User to ssh in as 
                ssh_key = None, # Name of AWS Keypair
                ssh_keyfile = None, # The private key on the local file system
-               region="default"):
+               region="default",
+               web_console_port = "8080"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
@@ -39,8 +41,9 @@ class NuoDBhost:
 
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
-    if self.ssh_execute(command) != 0:
-      return "Failed ssh execute on command " + command
+    (rc, stdout, stderr) = self.ssh_execute(command)
+    if rc != 0:
+      return "Failed ssh execute on command %s: %s" % (command, stderr)
     
   def agent_running(self, ip = None):
     while ip == None:
@@ -48,16 +51,8 @@ class NuoDBhost:
       self.update_data()
       ip = self.ext_ip 
     port = self.agentPort
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(2)
-    #print "Testing " + ip + ":" + str(port)
-    result = s.connect_ex((ip, port))
-    #print result
-    s.close()
-    if result == 0:
-      return True
-    else:
-      return False
+    return self.is_port_available(port, ip)
+    
     
   def apply_license(self, nuodblicense):
         if not self.isBroker:
@@ -68,7 +63,7 @@ class NuoDBhost:
         self.scp(f.name, "/tmp/license.file")
         f.close()
         for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
-            if self.ssh_execute(command) != 0:
+            if self.ssh_execute(command)[0] != 0:
                 sys.exit("Failed ssh execute on command " + command)
                 
   def attach_volume(self, size, mount_point):
@@ -79,7 +74,7 @@ class NuoDBhost:
         for letter in list(string.ascii_lowercase):
             if len(device) == 0:
                 command = "ls /dev | grep sd" + letter
-                if self.ssh_execute(command) > 0:
+                if self.ssh_execute(command)[0] > 0:
                     device = "/".join(["", "dev", "sd" + letter])
                     print "Found " + device
         if len(device) == 0:
@@ -95,11 +90,11 @@ class NuoDBhost:
         for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mkfs", "-t ext4", device]), " ".join(["sudo", "mount", device, mount_point])]:
             print command
             self.ssh_execute(command)
-        return self.ssh_execute("mount | grep " + mount_point)
+        return self.ssh_execute("mount | grep " + mount_point)[0]
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
-        if self.ssh_execute(command) != 0:
+        if self.ssh_execute(command)[0] != 0:
                 return "Failed ssh execute on command " + command
             
   def create(self, ami, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
@@ -161,7 +156,21 @@ class NuoDBhost:
           self.ssh_connection.connect(host, username=self.ssh_user)
  
   def health(self):
-        return self.ssh_execute("sudo service nuoagent status")
+    return self.ssh_execute("sudo service nuoagent status")[0]
+      
+  def is_port_available(self, port, ip = None):
+    if ip == None:
+      ip = self.ext_ip
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.settimeout(2)
+    #print "Testing " + ip + ":" + str(port)
+    result = s.connect_ex((ip, port))
+    #print result
+    s.close()
+    if result == 0:
+      return True
+    else:
+      return False
     
   def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-rest-api.yml", "webapp.properties"]):
         if len(peers) > 0:
@@ -173,7 +182,7 @@ class NuoDBhost:
         self.update_data()
         self.scp(local_file="./templates/yum/nuodb.repo", remote_file="/tmp/nuodb.repo")
         for command in [ 'sudo hostname ' + self.ext_fqdn, 'sudo mv /tmp/nuodb.repo /etc/yum.repos.d/', 'sudo yum -y install nuodb']:
-            if self.ssh_execute(command) != 0:
+            if self.ssh_execute(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         properties = dict(
             advertiseAlt=str(self.advertiseAlt).lower(),
@@ -200,7 +209,7 @@ class NuoDBhost:
             self.scp(f.name, "/tmp/" + templateFile)
             f.close()
             command = "sudo mv /tmp/" + templateFile + " /opt/nuodb/etc/" + templateFile
-            if self.ssh_execute(command) != 0:
+            if self.ssh_execute(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         return "OK"      
 
@@ -210,12 +219,16 @@ class NuoDBhost:
         sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
         sftp.put(local_file, remote_file)
 
-  def ssh_execute(self, command, logfile="/tmp/paramiko.log"):
-        if not hasattr(self, 'ssh_connection'):
-            self.__get_ssh_connection()
-        channel = self.ssh_connection.get_transport().open_session()
-        channel.exec_command(command + " &>> /tmp/paramiko.log")
-        return channel.recv_exit_status() 
+  def ssh_execute(self, command, nbytes = "99999"):
+    if not hasattr(self, 'ssh_connection'):
+      self.__get_ssh_connection()
+    channel = self.ssh_connection.get_transport().open_session()
+    channel.get_pty()
+    channel.exec_command(command)
+    exit_code = channel.recv_exit_status()
+    stdout = channel.recv(nbytes)
+    stderr = channel.recv_stderr(nbytes)
+    return (exit_code, stdout, stderr)
       
   def status(self):
         if self.exists:
