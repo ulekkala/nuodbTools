@@ -104,7 +104,7 @@ def get_zone_info(c):
     
     # Validate SSH Key
     
-    keypairs = zone_conn.get_all_keypairs()
+    keypairs = zone_conn.get_all_key_pairs()
     key_exists = False
     for keypair in keypairs:
       if c['ssh_key'] == keypair:
