@@ -107,14 +107,14 @@ def get_zone_info(c):
     keypairs = zone_conn.get_all_key_pairs()
     key_exists = False
     for keypair in keypairs:
-      if c['ssh_key'] == keypair:
+      if c['ssh_key'] == keypair.name:
         key_exists = True
     if not key_exists:
       print "Key %s does not exist in region %s. Please fix this and rerun this script" % (c['ssh_key'], region)
       exit(2)
     
     # Choose AMI
-    
+    print
     print region + " --- Choose the AMI (Loading...) "
     amis = zone_obj.get_amis()
     ami_dict = {}
@@ -141,7 +141,7 @@ def get_zone_info(c):
       r[region]["ami"] =  ami_dict[ami_descriptions[ami_choice]]['id']
     
     #What subnets to use?
-    
+    print
     print region + " --- Choose the subnets: "
     subnets = zone_obj.get_subnets()
     subnet_descs = []
@@ -162,6 +162,8 @@ def get_zone_info(c):
       exit()
     
     #What security groups to use?
+    print
+    print region + " --- Choose the security groups: "
     r[region]['security_group_ids'] = []
     security_groups = zone_obj.get_security_groups()
     default_group_exists = False
@@ -322,7 +324,6 @@ def __main__(action = None):
     else:
       print "You can now access the console at %s " % str(good_host)
       print "Other nodes may still be booting and will join the cluster eventually."
-    mycluster.exit()
     
   ########################
   #### Terminate a cluster

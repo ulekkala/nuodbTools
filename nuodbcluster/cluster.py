@@ -210,10 +210,6 @@ class NuoDBCluster:
     def dump_db(self):
       return self.db
     
-    def exit(self):
-      self.db.close()
-      pass
-    
     def get_brokers(self):
       try:
         brokers = []
@@ -285,6 +281,7 @@ class NuoDBCluster:
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (host.fqdn, stderr)
         host.agent_action(action = "restart")
+        host.webconsole_action(action = "restart")
       
     def terminate_hosts(self, zone = None):
       if zone == None:

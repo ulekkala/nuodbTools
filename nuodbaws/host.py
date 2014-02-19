@@ -43,7 +43,7 @@ class NuoDBhost:
     command = "sudo service nuoagent " + action
     (rc, stdout, stderr) = self.ssh_execute(command)
     if rc != 0:
-      return "Failed ssh execute on command %s: %s" % (command, stderr)
+      return "Failed to %s nuoagent with command %s: %s" % (action, command, stderr)
     
   def agent_running(self, ip = None):
     while ip == None:
@@ -251,6 +251,12 @@ class NuoDBhost:
         self.id = self.instance.id
         self.ext_ip = self.instance.ip_address
         self.int_ip = self.instance.private_ip_address
+  
+  def webconsole_action(self, action):
+    command = "sudo service nuowebconsole " + action
+    (rc, stdout, stderr) = self.ssh_execute(command)
+    if rc != 0:
+      return "Failed to %s nuowebconsole with command %s: %s" % (action, command, stderr)
         
         
 class TemporaryAddPolicy:
