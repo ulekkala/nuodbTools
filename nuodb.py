@@ -338,11 +338,7 @@ def __main__(action = None):
                                            dns_domain = c['dns_domain'], domain_name = c['domain_name'],
                                            domain_password = c['domain_password'], instance_type = c['instance_type'], 
                                            nuodb_license = c['license'])
-    '''
-    res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
-    if res == "y":
-      mycluster.delete_dns()
-    '''
+    
     for zone in c['zones']:
       mycluster.connect_zone(zone)
       z = c['zones'][zone]
@@ -350,19 +346,10 @@ def __main__(action = None):
         root_name = "db" + str(i)
         myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
     mycluster.terminate_hosts()
-    
-  elif action == "dump":
-    with open(config_file) as f:
-      c = json.loads(f.read())
-      f.close()
-    mycluster =  nuodbcluster.NuoDBCluster(
-                                           alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
-                                           aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
-                                           brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
-                                           dns_domain = c['dns_domain'], domain_name = c['domain_name'],
-                                           domain_password = c['domain_password'], instance_type = c['instance_type'], 
-                                           nuodb_license = c['license'])
-    print mycluster.dump_db()
+    if not mycluster.dns_emulate:
+      res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
+      if res == "y":
+        mycluster.delete_dns()
   else:
     help()
 
