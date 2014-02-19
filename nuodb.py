@@ -94,13 +94,24 @@ def get_zone_info(c):
       get = int(choose_from_list(regionlist))
       r[regionlist[get]] = {}
       i += 1
-   # amazon has a ton of amis named the same thing. Choose the latest one. Only reliable way I can find is to scrape their wiki. Cache this.
+  # amazon has a ton of amis named the same thing. Choose the latest one. Only reliable way I can find is to scrape their wiki. Cache this.
   page_cache = urllib2.urlopen("http://aws.amazon.com/amazon-linux-ami/").read()
   for region in r:
     # Server count 
     r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1,20))
     zone_obj = nuodbaws.NuoDBzone(region)
-    zone_obj.connect(c["aws_access_key"], c["aws_secret"])
+    zone_conn = zone_obj.connect(c["aws_access_key"], c["aws_secret"])
+    
+    # Validate SSH Key
+    
+    keypairs = zone_conn.get_all_keypairs()
+    key_exists = False
+    for keypair in keypairs:
+      if c['ssh_key'] == keypair:
+        key_exists = True
+    if not key_exists:
+      print "Key %s does not exist in region %s. Please fix this and rerun this script"
+      exit(2)
     
     # Choose AMI
     
