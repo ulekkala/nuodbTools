@@ -110,7 +110,7 @@ def get_zone_info(c):
       if c['ssh_key'] == keypair:
         key_exists = True
     if not key_exists:
-      print "Key %s does not exist in region %s. Please fix this and rerun this script"
+      print "Key %s does not exist in region %s. Please fix this and rerun this script" % (c['ssh_key'], region)
       exit(2)
     
     # Choose AMI
