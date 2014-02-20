@@ -211,7 +211,7 @@ def __main__(action = None):
             "ssh_keyfile": {"default": "/home/USER/.ssh/id_rsa", "prompt": "Enter the location of the private key used for ssh. Please use the absolute path: "},
             "alert_email" : {"default" : "","prompt" : "What email address would you like health alerts sent to?"},
             "brokers_per_zone": {"default" : 2, "prompt": "How many brokers do you want in each region?"},
-            "custom_rpm" : {"default" : "", "prompt": "Enter the publicly addressable URL for a RPM or use empty string for default production release: "}
+            "custom_rpm" : {"default" : "", "prompt": "Use alternative installation package? Empty for default: "}
           }
   if action == "create":
     #### Gather all the data we need
