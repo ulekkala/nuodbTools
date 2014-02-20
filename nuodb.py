@@ -216,9 +216,13 @@ def __main__(action = None):
   if action == "create":
     #### Gather all the data we need
     c = {}
-    with open(config_file) as f:
-      static_config = json.loads(f.read())
-      f.close()
+    if os.path.exists(config_file):
+      with open(config_file) as f:
+        static_config = json.loads(f.read())
+        f.close()
+    else:
+      static_config = {}
+      
     for key in static_config:
       if key in params:
         params[key]['default'] = static_config[key]
@@ -329,28 +333,32 @@ def __main__(action = None):
   #### Terminate a cluster
   ########################
   elif action == "terminate":
-    with open(config_file) as f:
-      c = json.loads(f.read())
-      f.close()
-    mycluster =  nuodbcluster.NuoDBCluster(
-                                           alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
-                                           aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
-                                           brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
-                                           dns_domain = c['dns_domain'], domain_name = c['domain_name'],
-                                           domain_password = c['domain_password'], instance_type = c['instance_type'], 
-                                           nuodb_license = c['license'])
-    
-    for zone in c['zones']:
-      mycluster.connect_zone(zone)
-      z = c['zones'][zone]
-      for i in range(0,z['servers']):
-        root_name = "db" + str(i)
-        myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
-    mycluster.terminate_hosts()
-    if not mycluster.dns_emulate:
-      res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
-      if res == "y":
-        mycluster.delete_dns()
+    if os.path.exists(config_file):
+      with open(config_file) as f:
+        c = json.loads(f.read())
+        f.close()
+      mycluster =  nuodbcluster.NuoDBCluster(
+                                             alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
+                                             aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
+                                             brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
+                                             dns_domain = c['dns_domain'], domain_name = c['domain_name'],
+                                             domain_password = c['domain_password'], instance_type = c['instance_type'], 
+                                             nuodb_license = c['license'])
+      
+      for zone in c['zones']:
+        mycluster.connect_zone(zone)
+        z = c['zones'][zone]
+        for i in range(0,z['servers']):
+          root_name = "db" + str(i)
+          myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
+      mycluster.terminate_hosts()
+      if not mycluster.dns_emulate:
+        res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
+        if res == "y":
+          mycluster.delete_dns()
+    else:
+      print "Can't find a previous config file to auto-terminate. If you can't find the file then you will have to destroy the cluster by hand."
+      exit(2)
   else:
     help()
 
