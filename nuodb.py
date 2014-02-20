@@ -63,6 +63,7 @@ def choose_multiple_from_list(params = []):
             tally.append(idx)
 
 def get_instance_type():
+  print "What type of instance do you want to use?"
   url = "https://raw2.github.com/garnaat/missingcloud/master/aws.json"
   obj = json.loads(urllib2.urlopen(url).read())
   instance_types = sorted(obj['services']['Elastic Compute Cloud']['instance_types'].keys())
@@ -164,6 +165,7 @@ def get_zone_info(c):
     #What security groups to use?
     print
     print region + " --- Choose the security groups: "
+    print region + " --- YOU MUST CHOOSE AT LEAST ONE SECURITY GROUP WITH SSH OPEN TO YOUR CURRENT LOCATION"
     r[region]['security_group_ids'] = []
     security_groups = zone_obj.get_security_groups()
     default_group_exists = False
@@ -205,7 +207,7 @@ def __main__(action = None):
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
             "dns_domain": {"default" : "None", "prompt" : "Enter a Route53 domain under your account. If you don't have one enter \"None\":"},
             "domain_name": {"default": "domain", "prompt": "What is the name of your NuoDB domain?"},
-            "domain_password": {"default": "password", "prompt": "What is the admin password of your NuoDB domain?"},
+            "domain_password": {"default": "bird", "prompt": "What is the admin password of your NuoDB domain?"},
             "license": {"default": "", "prompt": "Please enter your NuoDB license- or leave empty for development version:"},
             "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in all the regions you want to start instances:"},
             "ssh_keyfile": {"default": "/home/USER/.ssh/id_rsa", "prompt": "Enter the location of the private key used for ssh. Please use the absolute path: "},
@@ -238,6 +240,11 @@ def __main__(action = None):
       else:
         c[key] = val
         
+    #### test for ssh key
+    if not os.path.exists(c['ssh_key']):
+      print "Cannot find ssh private key %s. Please check and run again." % c['ssh_key']
+      exit(2)
+
     #### Get Instance type
     if "instance_type" not in static_config:
       c['instance_type'] = get_instance_type()
@@ -313,7 +320,6 @@ def __main__(action = None):
           obj = mycluster.get_host(host_id)
           host = mycluster.get_host_address(host_id)
           url = "http://%s:%s" % (host, obj.web_console_port)
-          print "Trying %s" % url
           if not healthy:
             try:
               urllib2.urlopen(url, None, 2)
