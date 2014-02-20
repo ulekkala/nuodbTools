@@ -1,34 +1,37 @@
 
 NuoDB DataBase As A Service cluster creation tools
-* Basic toolset for bringing up a NuoDB cluster. See create.py and terminate.py for usage examples.
+* Quickstart for NuoDB in AWS
 
-## How to use Nuodb AWS cluster creation scripts:
+## How to use this module:
 
 ## Preparation:
 * DNS Setup
-  * These scripts assume you have a domain that has its records hosted in [Amazon's Route53](http://aws.amazon.com/route53/) and that your AWS credentials have the ability to modify that account. Please see the Route53 documents for how to achieve this.
-  * Determine which regions to use
-  * Amazon has (as of this writing) 8 different regions. You should determine which zones you wish to use and take note of the AMIs for each one. If you decide to use the default Amazon AMIs you can find the latest [here](http://aws.amazon.com/amazon-linux-ami/). ALWAYS USE A 64 BIT AMI.
+  * The best and easiest way to use these scripts is to use a [Amazon Route53](http://aws.amazon.com/route53/) hosted domain. If you do not have one the script will attempt to emulate DNS by populating /etc/hosts in each of your servers.
+* Determine which regions to use
+  * Amazon has (as of this writing) 8 different regions. You should determine which zones you wish to use for your cluster. You will have the ability to choose a base AMI for your installation in each zone- this script will give you the choice of the Amazon Linux ones, one in your account, or an arbitrary one. If you choose an arbitrary one then make note of the id (ami-xxxxxxxxx) because you will need to enter it later.
   * In each region you should determine the subnets for each zone you want to use. Amazon subnet IDs are in the format 'subnet-aaaaaaaa'. You can determine available subnets by using a URL similar to this one and changing the region: `https://console.aws.amazon.com/vpc/home?region=ap-southeast-1#s=subnets`
   * You may use multiple subnets from each region if you like. Instances will be evenly distributed over the subnets.
 * Security Zones
-  * At a minimum you should allow access to the NuoDB ports listed [here](http://doc.nuodb.com/display/doc/Linux+Installation). If you are doing multi-region then ensure traffic is allowed from other regions. Take note of each of the ids (sg-aaaaaaaa) of the security groups you want to use in each region
+  * At a minimum you should allow access to the NuoDB ports listed [here](http://doc.nuodb.com/display/doc/Linux+Installation). If you are doing multi-region then ensure traffic is allowed from other regions. Take note of each of the ids (sg-aaaaaaaa) of the security groups you want to use in each region.
+  * Auto creation of secutity zones
+    * This script has the ability to auto-create a security zone for you. This security zone will contain the following ports open to the world:
+      * 8080 (NuoDB web console)
+      * 8888 (NuoDB REST API)
+      * 8889 (NuoDB Admin port)
+      * 48004 (NuoDB agent port)
+      * 48005-48020 (NuoDB TE & SM)
+    * Should you choose this security group you must also ensure that SSH is open to the host that you are running the script on. This script uses SSH for some configuration activities.
 * SSH keys & AWS credentials
   * You should know the name of valid ssh key for each environment and have the private keys for your account accessible.
   * You should know your AWS access key and AWS secret key
-
-
+* Python required modules.
+  * Make sure the following are installed:
+    * [Python 2.6 or higher](http://www.python.org)
+    * [Boto](https://github.com/boto/boto/tree/master)
+    * [Paramiko](https://github.com/paramiko/paramiko)
+    * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
+  
 ## Execution:
-* Make sure you have [python](http://www.python.org) installed
-* Install [Boto](https://github.com/boto/boto/tree/master)
-* Install [Paramiko](https://github.com/paramiko/paramiko)
-* Install [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
-* Git clone this repo
-* In the root of the newly cloned directory make a file called config.json from the template[config.json.example](config.json.example) using the data you gathered above
-* To create your cluster run create.py
-* To delete your cluster run terminate.py
-
-## Notes:
-* Persistent data is stored in a file inside your cloned directory root in a directory called /data. If you delete this file then the create & terminate scripts may not behave correctly because they cannot determine cluster state. If this happens you will have to control the instances manually. 
-
-
+* Git clone this repo to a local directory on your machine
+* Run nuodb.py and follow the prompts.
+* If the script completes correctly it will display the address of a running web console.

@@ -20,8 +20,24 @@ class NuoDBzone:
             try:
                 self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
             except Exception, e:
-                pass
+                print e
     def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip, src_group=None, dry_run=None):
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
     def get_amis(self):
       return self.connection.get_all_images(owners=["self", "802164393885", "amazon"])
+    def get_keys(self):
+      return self.connection.get_all_key_pairs()
+    def get_security_groups(self):
+      return self.connection.get_all_security_groups()
+    def get_subnets(self):
+      subnets = {}
+      networkinterfaces = self.connection.get_all_network_interfaces()
+      for networkinterface in networkinterfaces:
+        id = networkinterface.subnet_id
+        subnets[id] = {}
+        for arg in networkinterface.__dict__:
+          subnets[id][arg] = networkinterface.__dict__[arg]
+      return subnets
+
+class Error(Exception):
+  pass
