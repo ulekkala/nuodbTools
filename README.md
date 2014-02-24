@@ -1,6 +1,7 @@
 
-NuoDB DataBase As A Service cluster creation tools
-* Quickstart for NuoDB in AWS
+NuoDB Amazon Web Services quickstart
+* What do these scripts do?
+  These scripts allow you to create a fully functional [NuoDB](http://www.nuodb.com) database in AWS, with all the bells and whistles you would expect.
 
 ## How to use this module:
 

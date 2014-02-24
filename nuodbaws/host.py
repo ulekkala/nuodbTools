@@ -3,27 +3,27 @@ import boto.route53
 from paramiko import SSHClient, SFTPClient
 import base64, inspect, json, os, socket, string, sys, tempfile, time
 
-class NuoDBhost:
+class Host:
   def __init__(self, 
                name, 
-               EC2Connection, 
-               Route53Connection, 
-               dns_domain,
-               advertiseAlt=False, 
-               agentPort=48004, 
-               altAddr="",
+               EC2Connection = None, 
+               Route53Connection = None, 
+               dns_domain = None,
+               advertiseAlt = False, 
+               agentPort = 48004, 
+               altAddr = "",
                autoconsole_port = "8888",
-               domain="domain", 
-               domainPassword="bird", 
-               enableAutomation=False,
-               enableAutomationBootstrap=False,
-               isBroker=False, 
-               portRange=48005, 
-               peers=[],
-               ssh_user="ec2-user", # User to ssh in as 
+               domain ="domain", 
+               domainPassword ="bird", 
+               enableAutomation = False,
+               enableAutomationBootstrap = False,
+               isBroker = False, 
+               portRange = 48005, 
+               peers = [],
+               ssh_user ="ec2-user", # User to ssh in as 
                ssh_key = None, # Name of AWS Keypair
                ssh_keyfile = None, # The private key on the local file system
-               region="default",
+               region = "default",
                web_console_port = "8080"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
@@ -37,7 +37,9 @@ class NuoDBhost:
         if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
           self.exists = True
           self.instance = instance
-          self.update_data()              
+          self.update_data()
+          self.__get_amazon_data()
+          self.__get_mounts()           
 
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
@@ -122,7 +124,6 @@ class NuoDBhost:
                 zone.delete_a(fqdn)
   
   def dns_set(self, type = "A", record = None, value = None):
-        
         zone = self.Route53Connection.get_zone(self.dns_domain)
         if record != None:
           records = {record: value}
@@ -142,6 +143,83 @@ class NuoDBhost:
             else:
                 zone.add_a(fqdn, value=value)
                 
+  def __get_amazon_data(self):
+    metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
+    (return_code, null, stderr) = self.ssh_execute(metadata_cmd)
+    if return_code != 0:
+      raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
+    amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
+    self.amazon_data = amazon_data
+    print amazon_data
+    return amazon_data
+    
+  def __get_amazon_field(self, key, metadata_cmd):
+    if len(key) == 0:
+      raise Error("Key length of zero! Should not be here")
+    cmd = metadata_cmd + key
+    if key[-1] != "/":
+      data = self.ssh_execute(cmd)[1]
+      data_array = data.split("\r\n")
+      if len(data_array) > 1:
+        return data_array
+      else:
+        return data
+    else:
+      subkeys = self.ssh_execute(cmd)[1].split("\r\n")
+      dataset = {}
+      for subkey in subkeys:
+        if len(subkey) > 0:
+          if subkey[-1] == "/":
+            keyname = subkey[0:len(subkey[0:-1])]
+          else:
+            keyname = subkey
+          dataset[keyname] = self.__get_amazon_field(key = "".join([key, subkey]), metadata_cmd = metadata_cmd)
+      return dataset
+    
+  def get_directory_target(self, dir):
+    #resolves symlinks to find the actual directory
+    rc, stdout, stderr = self.ssh_execute("sudo readlink -f " + dir)
+    if rc != 0:
+      raise Error("Could not find directory %s: %s" %(dir, stderr))
+    return stdout.rstrip()
+  
+  def __get_mounts(self):
+    cmd = "mount"
+    (r, mount_output, stderr) = self.ssh_execute(cmd)
+    if r != 0:
+      raise Error("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
+    mount_lines = mount_output.split("\n")
+    mounts = {}
+    infra_devices = {}
+    aliases = {}
+    device_alias_list = self.ssh_execute("find /dev -maxdepth 1 -type l -exec ls -lah {} \;")[1].split("\r\n")
+    for device_alias_line in device_alias_list:
+      device_alias_fields = device_alias_line.split(" ")
+      if len(device_alias_fields) > 1:
+        if device_alias_fields[10][0] != "/":
+          target = "/".join(["/dev", device_alias_fields[10]])
+        else:
+          target = device_alias_fields[10]
+        aliases[device_alias_fields[8]] = target
+    if self.EC2Connection != None:
+      volumes = self.EC2Connection.get_all_volumes()
+      for volume in volumes:
+        v = volume.attach_data
+        if v.status == "attached" and v.instance_id== self.amazon_data['instance-id']:
+          infra_devices[v.device] = v.id
+    for line in mount_lines:
+      if len(line) > 0:
+        fields = line.split(" ")
+        device = fields[0]
+        mounts[fields[2]] = {"dev": device, "type": fields[4]}
+        if device in infra_devices:
+          mounts[fields[2]]['ebs_volume'] = infra_devices[device]
+        else:
+          for link in aliases:
+            if aliases[link] == device and link in infra_devices:
+              mounts[fields[2]]['ebs_volume'] = infra_devices[link]
+    self.volume_mounts = mounts
+    
   def __get_ssh_connection(self):
         try:
             host = socket.gethostbyname(self.ext_fqdn)
@@ -168,6 +246,13 @@ class NuoDBhost:
     #print result
     s.close()
     if result == 0:
+      return True
+    else:
+      return False
+  
+  def path_exists(self, path, test = "d"):
+    rc, stdout, stderr = self.ssh_execute("test -%s %s" % (test, path))
+    if rc == 0:
       return True
     else:
       return False
@@ -231,26 +316,26 @@ class NuoDBhost:
     return (exit_code, stdout, stderr)
       
   def status(self):
-        if self.exists:
-            self.update_data()
-            return self.instance.state
-        else:
-            return "Host does not exist"
+    if self.exists:
+      self.update_data()
+      return self.instance.state
+    else:
+      return "Host does not exist"
           
   def terminate(self):
-        if self.exists:
-            # self.dns_delete()
-            self.EC2Connection.terminate_instances(self.id)
-            self.exists = False
-            return("Terminated " + self.name)
-        else:
-            return("Cannot terminate " + self.name + " as node does not exist.")
+    if self.exists:
+      # self.dns_delete()
+      self.EC2Connection.terminate_instances(self.id)
+      self.exists = False
+      return("Terminated " + self.name)
+    else:
+      return("Cannot terminate " + self.name + " as node does not exist.")
           
   def update_data(self):
-        self.instance.update()
-        self.id = self.instance.id
-        self.ext_ip = self.instance.ip_address
-        self.int_ip = self.instance.private_ip_address
+    self.instance.update()
+    self.id = self.instance.id
+    self.ext_ip = self.instance.ip_address
+    self.int_ip = self.instance.private_ip_address
   
   def webconsole_action(self, action):
     command = "sudo service nuowebconsole " + action
@@ -258,7 +343,9 @@ class NuoDBhost:
     if rc != 0:
       return "Failed to %s nuowebconsole with command %s: %s" % (action, command, stderr)
         
-        
+class Error(Exception):
+  pass        
+
 class TemporaryAddPolicy:
     def missing_host_key(self, client, hostname, key):
         pass

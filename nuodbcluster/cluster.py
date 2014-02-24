@@ -104,7 +104,7 @@ class NuoDBCluster:
       stub[host]['ami'] = ami
       stub[host]['security_group_ids'] = security_group_ids
       stub[host]['subnet'] = subnets[len(stub) % len(subnets)]
-      stub[host]['obj'] = nuodbaws.NuoDBhost(host, EC2Connection=self.zones[zone].connection, 
+      stub[host]['obj'] = nuodbaws.Host(host, EC2Connection=self.zones[zone].connection, 
                                              Route53Connection=self.route53, dns_domain=self.dns_domain, 
                                              domain = self.domain_name, domainPassword = self.domain_password, 
                                              advertiseAlt = True, region = zone,

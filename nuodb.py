@@ -241,8 +241,8 @@ def __main__(action = None):
         c[key] = val
         
     #### test for ssh key
-    if not os.path.exists(c['ssh_key']):
-      print "Cannot find ssh private key %s. Please check and run again." % c['ssh_key']
+    if not os.path.exists(c['ssh_keyfile']):
+      print "Cannot find ssh private key %s. Please check and run again." % c['ssh_keyfile']
       exit(2)
 
     #### Get Instance type
