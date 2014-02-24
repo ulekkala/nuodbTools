@@ -38,9 +38,7 @@ class Host:
         if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
           self.exists = True
           self.instance = instance
-          self.update_data()
-          self.__get_amazon_data()
-          self.__get_mounts()           
+          self.update_data()         
 
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
@@ -56,7 +54,15 @@ class Host:
     port = self.agentPort
     return self.is_port_available(port, ip)
     
-    
+  @property
+  def amazon_data(self):
+    metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
+    (return_code, null, stderr) = self.ssh_execute(metadata_cmd)
+    if return_code != 0:
+      raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
+    amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
+    return amazon_data
+  
   def apply_license(self, nuodblicense):
         if not self.isBroker:
             return "Can only apply a license to a node that is a Broker"
@@ -129,7 +135,7 @@ class Host:
         if record != None:
           records = {record: value}
         else:
-          while len(self.int_ip) == 0 or len(self.ext_ip) == 0:
+          while self.int_ip == None or self.ext_ip == None or len(self.int_ip) == 0 or len(self.ext_ip) == 0:
             self.update_data()
             print "Waiting for IPs..."
             time.sleep(5)
@@ -142,15 +148,6 @@ class Host:
                 zone.update_a(fqdn, value=value, ttl=60)
             else:
                 zone.add_a(fqdn, value=value)
-                
-  def __get_amazon_data(self):
-    metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
-    (return_code, null, stderr) = self.ssh_execute(metadata_cmd)
-    if return_code != 0:
-      raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
-    amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
-    self.amazon_data = amazon_data
-    return amazon_data
     
   def __get_amazon_field(self, key, metadata_cmd):
     if len(key) == 0:
@@ -181,43 +178,6 @@ class Host:
     if rc != 0:
       raise Error("Could not find directory %s: %s" %(dir, stderr))
     return stdout.rstrip()
-  
-  def __get_mounts(self):
-    cmd = "mount"
-    (r, mount_output, stderr) = self.ssh_execute(cmd)
-    if r != 0:
-      raise Error("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
-    mount_lines = mount_output.split("\n")
-    mounts = {}
-    infra_devices = {}
-    aliases = {}
-    device_alias_list = self.ssh_execute("find /dev -maxdepth 1 -type l -exec ls -lah {} \;")[1].split("\r\n")
-    for device_alias_line in device_alias_list:
-      device_alias_fields = device_alias_line.split(" ")
-      if len(device_alias_fields) > 1:
-        if device_alias_fields[10][0] != "/":
-          target = "/".join(["/dev", device_alias_fields[10]])
-        else:
-          target = device_alias_fields[10]
-        aliases[device_alias_fields[8]] = target
-    if self.ec2Connection != None:
-      volumes = self.ec2Connection.get_all_volumes()
-      for volume in volumes:
-        v = volume.attach_data
-        if v.status == "attached" and v.instance_id== self.amazon_data['instance-id']:
-          infra_devices[v.device] = v.id
-    for line in mount_lines:
-      if len(line) > 0:
-        fields = line.split(" ")
-        device = fields[0]
-        mounts[fields[2]] = {"dev": device, "type": fields[4]}
-        if device in infra_devices:
-          mounts[fields[2]]['ebs_volume'] = infra_devices[device]
-        else:
-          for link in aliases:
-            if aliases[link] == device and link in infra_devices:
-              mounts[fields[2]]['ebs_volume'] = infra_devices[link]
-    self.volume_mounts = mounts
     
   def __get_ssh_connection(self):
         try:
@@ -331,10 +291,57 @@ class Host:
       return("Cannot terminate " + self.name + " as node does not exist.")
           
   def update_data(self):
-    self.instance.update()
-    self.id = self.instance.id
-    self.ext_ip = self.instance.ip_address
-    self.int_ip = self.instance.private_ip_address
+    good = False
+    count = 0
+    while not good and count < 5:
+      try:
+        self.instance.update()
+        self.id = self.instance.id
+        self.ext_ip = self.instance.ip_address
+        self.int_ip = self.instance.private_ip_address
+        return True
+      except:
+        time.sleep(5)
+        count += 1
+    return False
+  
+  @property
+  def volume_mounts(self):
+    cmd = "mount"
+    (r, mount_output, stderr) = self.ssh_execute(cmd)
+    if r != 0:
+      raise Error("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
+    mount_lines = mount_output.split("\n")
+    mounts = {}
+    infra_devices = {}
+    aliases = {}
+    device_alias_list = self.ssh_execute("find /dev -maxdepth 1 -type l -exec ls -lah {} \;")[1].split("\r\n")
+    for device_alias_line in device_alias_list:
+      device_alias_fields = device_alias_line.split(" ")
+      if len(device_alias_fields) > 1:
+        if device_alias_fields[10][0] != "/":
+          target = "/".join(["/dev", device_alias_fields[10]])
+        else:
+          target = device_alias_fields[10]
+        aliases[device_alias_fields[8]] = target
+    if self.ec2Connection != None:
+      volumes = self.ec2Connection.get_all_volumes()
+      for volume in volumes:
+        v = volume.attach_data
+        if v.status == "attached" and v.instance_id== self.instance.id:
+          infra_devices[v.device] = v.id
+    for line in mount_lines:
+      if len(line) > 0:
+        fields = line.split(" ")
+        device = fields[0]
+        mounts[fields[2]] = {"dev": device, "type": fields[4]}
+        if device in infra_devices:
+          mounts[fields[2]]['ebs_volume'] = infra_devices[device]
+        else:
+          for link in aliases:
+            if aliases[link] == device and link in infra_devices:
+              mounts[fields[2]]['ebs_volume'] = infra_devices[link]
+    return mounts
   
   def webconsole_action(self, action):
     command = "sudo service nuowebconsole " + action

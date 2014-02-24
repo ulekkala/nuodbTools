@@ -8,14 +8,14 @@ if os.path.exists(configfile):
     c = json.loads(f.read())
     f.close()
 
-c['database'] = "test1"
-c['host'] = "db3.wrapper.us-east-1.nuoDB"
+c['database'] = "test2"
+c['host'] = "db3.unification.us-east-1.nuodbcloud.net"
 c['aws_region'] = "us-east-1"
-c['rest_url'] = "http://54.84.134.108:8888/api"
+c['rest_url'] = "http://db0.unification.us-east-1.nuodbcloud.net:8888/api"
 c['ssh_username'] = "ec2-user"
 
 
-db = nuodbcluster.Backup(name = c['database'], host = c['host'],
+db = nuodbcluster.Backup(database = c['database'], host = c['host'],
                                      aws_access_key=c['aws_access_key'], aws_secret=c['aws_secret'], 
                                      aws_region = c['aws_region'], rest_url = c['rest_url'], 
                                      rest_username = c['domain_name'], rest_password = c['domain_password'], 

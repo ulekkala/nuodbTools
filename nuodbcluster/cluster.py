@@ -72,12 +72,12 @@ class NuoDBCluster:
       if "chef_data" not in stub[host]:
         if len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < 1:
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": True, "autoconsole": {"brokers": ["localhost"]}}}
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": True, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
           #self.db['customers'][self.cluster_name]['brokers'] = [agent_addr]
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] =[agent_addr]
         elif len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < int(self.brokers_per_zone):
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}}}
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
           #self.db['customers'][self.cluster_name]['brokers'].append(agent_addr)
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'].append(agent_addr)
         else:

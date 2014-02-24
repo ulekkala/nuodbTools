@@ -44,6 +44,13 @@ class Database():
           # test that the file exists
           pass
         
+    def stop_process(self, process_id):
+      for process in self.processes:
+        if process_id == process['uid']:
+          self.domain.rest_req(action="DELETE", path="/".join(["processes", process_id]))
+          return True
+      raise Error("Could not find process %s to stop it" % process_id)
+        
     def update(self):
       data = self.domain.rest_req("GET", "databases/%s" % self.name)
       for key in data:

@@ -11,7 +11,7 @@ import inspect, json, random, time
 
 class Backup():
   def __init__(self, 
-               name = None, host = None, 
+               database = None, host = None, 
                aws_access_key = None, aws_secret = None, aws_region = None, 
                domainConnection = None, ec2Connection = None, 
                rest_username=None, rest_password=None, rest_url=None, 
@@ -31,10 +31,9 @@ class Backup():
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
     else:
       self.ec2Connection = None
-    if name not in self.domainConnection.get_databases():
+    if database not in self.domainConnection.get_databases():
       raise Error("Can not find database %s in domain provided")
-    self.database = nuodbcluster.Database(name=self.name, domain = self.domainConnection)
-    print self.database.__dict__
+    self.db = nuodbcluster.Database(name=self.database, domain = self.domainConnection)
     self.backup()
   
   def backup(self):
@@ -61,7 +60,7 @@ class Backup():
       else:
         return "/".join(common)
 
-    sm_processes = self.database.get_processes(type="SM")
+    sm_processes = self.db.get_processes(type="SM")
     if self.host != None:
       exists = False
       for process in sm_processes:
@@ -79,35 +78,35 @@ class Backup():
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
 
-    backuphost = nuodbaws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    self.backuphost = nuodbaws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     print "Figure out what volume(s) to back up..."
     process_detail = self.domainConnection.rest_req(path="/".join(["processes",uid,"query"]))
     archive = {"dir": process_detail['configuration']['configuration']['archive'], "type": "archive"}
-    checklink = backuphost.get_directory_target(archive['dir'])
+    checklink = self.backuphost.get_directory_target(archive['dir'])
     if checklink != archive['dir']:
       archive['dir'] = checklink
     # Journal directory is an optional parameter
     if "journal-dir" in process_detail['configuration']['configuration']:
       journal = {"dir": process_detail['configuration']['configuration']['journal-dir'], "type": "journal"}
-      checklink = backuphost.get_directory_target(journal['dir'])
+      checklink = self.backuphost.get_directory_target(journal['dir'])
       if checklink != journal['dir']:
         journal['dir'] = checklink
     else:
       journal = {"dir": archive['dir'], "type": "journal"}
     archive['mount'] = None
-    for mount in backuphost.volume_mounts:
+    for mount in self.backuphost.volume_mounts:
       root_dir = __find_common_root_dir(mount, archive['dir'])
       if archive['mount'] == None or len(root_dir) > len(archive['mount']):
         archive['mount'] = root_dir
     journal['mount'] = None
-    for mount in backuphost.volume_mounts:
+    for mount in self.backuphost.volume_mounts:
       root_dir = __find_common_root_dir(mount, journal['dir'])
       if journal['mount'] == None or len(root_dir) > len(journal['mount']):
         journal['mount'] = root_dir
     if archive['mount'] == None or journal['mount'] == None:
       raise Error("Can't determine mount points for %s and %s" % (archive['dir'], journal['dir']))
-    archive['volume'] = backuphost.volume_mounts[archive['mount']]
-    journal['volume'] = backuphost.volume_mounts[journal['mount']]
+    archive['volume'] = self.backuphost.volume_mounts[archive['mount']]
+    journal['volume'] = self.backuphost.volume_mounts[journal['mount']]
     print "Archive on %s of type %s" % (archive['mount'], archive['volume']['type'])
     print "Journal on %s of type %s" % (journal['mount'], journal['volume']['type'])
     
@@ -118,27 +117,27 @@ class Backup():
       # AWS EBS supports snapshotting
       if "ebs_volume" in archive['volume'] and self.backup_type in ["ebs", "auto", None]:
         # This is an amazon EBS volume
-        name = self.__backup_ebs(archive['volume']['ebs_volume'], backuphost)
-        notification = "Created an EBS backup of %s with snapshot id %s" % (self.name, name[1])
+        name = self.__backup_ebs(archive['volume']['ebs_volume'], self.backuphost)
+        notification = "Created an EBS backup of %s with snapshot id %s" % (self.database, name[1])
       # So does a zfs volume
       elif archive['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
         notification = self.__backup_zfs(
                                           directory = archive['dir'], device = archive['volume']['dev'], 
-                                          host = backuphost
+                                          host = self.backuphost
                                           ) + "\n"
       # Anything else we need offline backup
       else:
-        notification = self.__offline_backup(host = backuphost, storage_manager = mysm, archive = archive, journal = None)
+        notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = None)
     else:
-      notification = self.__offline_backup(host = backuphost, storage_manager = mysm, archive = archive, journal = journal)
+      notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = journal)
     print notification
     print "Exiting..."
   
   def __offline_backup(self, host = None, storage_manager = None, archive = None, journal = None):
     # If we are here we are going to take down the SM, take a backup, and start the process
     print "No online backup method available"
-    if len(self.get_processes(type="SM")) < 2:
-      print "Not enough storage managers to take backup. Need 2, have %s " % len(self.get_processes(type="SM")) 
+    if len(self.db.get_processes(type="SM")) < 2:
+      print "Not enough storage managers to take backup. Need 2, have %s " % len(self.db.get_processes(type="SM")) 
       print "Please start another and wait for it to synchronize"
       exit(1)
     else:
@@ -153,7 +152,7 @@ class Backup():
         if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
           # This is an amazon EBS volume
           name = self.__backup_ebs(dir['volume']['ebs_volume'], host, backup_type = dir['type'], timestamp = timestamp)
-          notification += "Created an EBS backup of %s:%s with snapshot id %s" % (self.name, dir['type'], name) + "\n"
+          notification += "Created an EBS backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name) + "\n"
         elif dir['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
           notification += self.__backup_zfs(
                                             directory = dir['dir'], device = dir['volume']['dev'], 
@@ -173,9 +172,9 @@ class Backup():
   def __backup_ebs(self, vol_id, host, backup_type = "", timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())):
     print "Doing AWS EBS snapshot of %s" % vol_id
     if backup_type != "":
-      dbname = ":".join([backup_type, self.name])
+      dbname = ":".join([backup_type, self.database])
     else:
-      dbname = self.name
+      dbname = self.database
     description = "NuoDB Backup of %s from %s on %s" % (dbname, host.name, timestamp)
     snapshot = self.ec2Connection.create_snapshot(volume_id = vol_id, description = description[0:255])
     snapshot.update()
@@ -183,9 +182,9 @@ class Backup():
     
   def __backup_zfs(self, directory, device, host, backup_type = "", timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())):
     if backup_type != "":
-      dbname = ":".join([backup_type, self.name])
+      dbname = ":".join([backup_type, self.database])
     else:
-      dbname = self.name
+      dbname = self.database
     description = "NuoDB Backup of %s from %s on %s" % (dbname, host.hostname, timestamp)
     command = "sudo zfs snapshot %s@\"%s\"" % (device, description)
     rc, stdout, stderr = host.ssh_execute(command)[0]
@@ -196,9 +195,9 @@ class Backup():
     
   def __backup_tarball(self, source, destination, host, backup_type = "", timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())):
     if backup_type != "":
-      dbname = ":".join([backup_type, self.name])
+      dbname = ":".join([backup_type, self.database])
     else:
-      dbname = self.name
+      dbname = self.database
     filename = "NuoDB_backup_%s_%s_%s.tgz" % (dbname, host.hostname, timestamp.replace(" ", "_"))
     print filename
     command = """
@@ -219,15 +218,13 @@ class Backup():
     return self.__dict__
   
   def start_process(self, type="SM", archive_dir= None):
-    data = {"type": type, "dbname": self.name}
-    if archive_dir != None:
-      data['archive'] = archive_dir
-    self.domainConnection.rest_req(action="POST", path="processes", data=json.dumps(data))
+    pass
+    #self.db.start_process(type = "host", host = self.backuphost.name, archive = archive_dir, journal, options)
     
   def stop_process(self, process_id, force=False):
     process_exists = False
     process_type = None
-    for process in self.get_processes():
+    for process in self.db.get_processes():
       if process['uid'] == process_id:
         process_exists = True
         if process['transactional']:
@@ -235,11 +232,11 @@ class Backup():
         else:
           process_type = "SM"  
     if process_exists:
-      if len(self.get_processes(type=process_type)) <= 1 and not force:
-        raise Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.name))
+      if len(self.db.get_processes(type=process_type)) <= 1 and not force:
+        raise Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.database))
       else:
         print "Stopping %s" % process_id
-        self.domainConnection.rest_req(action="DELETE", path="/".join(["processes", process_id]))
+        self.db.stop_process(process_id)
     else:
       raise Error("Process %s does not exist in this database" % process_id)
     
