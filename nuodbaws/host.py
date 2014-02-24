@@ -17,6 +17,7 @@ class Host:
                domainPassword ="bird", 
                enableAutomation = False,
                enableAutomationBootstrap = False,
+               hostname = None,
                isBroker = False, 
                portRange = 48005, 
                peers = [],
@@ -29,8 +30,8 @@ class Host:
     for i in args:
       setattr(self, i, values[i])
     self.exists = False
-    self.int_fqdn = ".".join([self.name, "int", self.dns_domain])
-    self.ext_fqdn = ".".join([self.name, self.dns_domain])
+    if self.dns_domain not in self.name:
+      self.name = ".".join([self.name, self.dns_domain])
 
     for reservation in self.EC2Connection.get_all_reservations():
       for instance in reservation.instances:
@@ -119,7 +120,7 @@ class Host:
     
   def dns_delete(self):
         zone = self.Route53Connection.get_zone(self.dns_domain)
-        for fqdn in [self.int_fqdn, self.ext_fqdn]:
+        for fqdn in [self.name]:
             if zone.find_records(fqdn, "A") != None:
                 zone.delete_a(fqdn)
   
@@ -132,8 +133,7 @@ class Host:
             self.update_data()
             print "Waiting for IPs..."
             time.sleep(5)
-          records = {self.ext_fqdn: self.ext_ip}.iteritems()
-          
+          records = {self.name: self.ext_ip}.iteritems()
         for fqdn, value in records:
           if type == "TXT":
             pass
@@ -150,7 +150,6 @@ class Host:
       raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
     amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
     self.amazon_data = amazon_data
-    print amazon_data
     return amazon_data
     
   def __get_amazon_field(self, key, metadata_cmd):
@@ -222,7 +221,7 @@ class Host:
     
   def __get_ssh_connection(self):
         try:
-            host = socket.gethostbyname(self.ext_fqdn)
+            host = socket.gethostbyname(self.name)
         except:
             host = self.ext_ip
         self.ssh_connection = SSHClient()
@@ -266,7 +265,7 @@ class Host:
             self.enableAutomationBootstrap = enableAutomationBootstrap
         self.update_data()
         self.scp(local_file="./templates/yum/nuodb.repo", remote_file="/tmp/nuodb.repo")
-        for command in [ 'sudo hostname ' + self.ext_fqdn, 'sudo mv /tmp/nuodb.repo /etc/yum.repos.d/', 'sudo yum -y install nuodb']:
+        for command in [ 'sudo hostname ' + self.name, 'sudo mv /tmp/nuodb.repo /etc/yum.repos.d/', 'sudo yum -y install nuodb']:
             if self.ssh_execute(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         properties = dict(

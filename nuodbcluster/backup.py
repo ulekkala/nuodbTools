@@ -77,7 +77,8 @@ class Backup():
     uid = mysm['uid']
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
-    backuphost = nuodbaws.Host(domainConnection = self.domainConnection, ec2Connection = self.ec2Connection, hostname = mysm['hostname'], ssh_username = self.ssh_username, ssh_key = self.ssh_key)
+    
+    backuphost = nuodbaws.Host(domainConnection = self.domainConnection, ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_username = self.ssh_username, ssh_key = self.ssh_key)
     print "Figure out what volume(s) to back up..."
     process_detail = self.domainConnection.rest_req(path="/".join(["processes",uid,"query"]))
     archive = {"dir": process_detail['configuration']['configuration']['archive'], "type": "archive"}
