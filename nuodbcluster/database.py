@@ -16,6 +16,21 @@ class Database():
           hosts.append(process['hostname'])
       return sorted(hosts)
     
+    def get_process(self, process_id=None):
+      return self.domain.rest_req(action="GET", path="/".join(["processes", process_id]))
+      
+    def get_processes(self, type=None):
+      processes = []
+      for process in self.processes:
+        if (type == "SM" and not process['transactional']) or (type == "TE" and process['transactional']) or type == None:
+          processes.append(process)
+      return processes
+    
+    @property
+    def processes(self):
+      data = self.domain.rest_req("GET", "/".join(["databases", self.name]))
+      return data["processes"]
+      
     def start_process(self, type, host = None, archive = None, journal = None, options = []):
       if type == "SM":
         proto = archive.split("/")[0]

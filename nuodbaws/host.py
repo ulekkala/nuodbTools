@@ -6,7 +6,7 @@ import base64, inspect, json, os, socket, string, sys, tempfile, time
 class Host:
   def __init__(self, 
                name, 
-               EC2Connection = None, 
+               ec2Connection = None, 
                Route53Connection = None, 
                dns_domain = None,
                advertiseAlt = False, 
@@ -30,10 +30,10 @@ class Host:
     for i in args:
       setattr(self, i, values[i])
     self.exists = False
-    if self.dns_domain not in self.name:
+    if self.dns_domain != None and self.dns_domain not in self.name:
       self.name = ".".join([self.name, self.dns_domain])
 
-    for reservation in self.EC2Connection.get_all_reservations():
+    for reservation in self.ec2Connection.get_all_reservations():
       for instance in reservation.instances:
         if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
           self.exists = True
@@ -82,11 +82,11 @@ class Host:
                     print "Found " + device
         if len(device) == 0:
             sys.exit("Could not find a suitable device for mounting")
-        volume = self.EC2Connection.create_volume(size, self.region)
+        volume = self.ec2Connection.create_volume(size, self.region)
         while volume.status != "available":
             volume.update()
             time.sleep(1)
-        self.EC2Connection.attach_volume(volume.id, self.instance.id, device)
+        self.ec2Connection.attach_volume(volume.id, self.instance.id, device)
         while volume.attachment_state() != "attached":
             volume.update()
             time.sleep(1)
@@ -106,7 +106,7 @@ class Host:
               self.userdata = userdata
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            reservation = self.EC2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
+            reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
             self.exists = True
             for instance in reservation.instances:
                 self.instance = instance
@@ -200,8 +200,8 @@ class Host:
         else:
           target = device_alias_fields[10]
         aliases[device_alias_fields[8]] = target
-    if self.EC2Connection != None:
-      volumes = self.EC2Connection.get_all_volumes()
+    if self.ec2Connection != None:
+      volumes = self.ec2Connection.get_all_volumes()
       for volume in volumes:
         v = volume.attach_data
         if v.status == "attached" and v.instance_id== self.amazon_data['instance-id']:
@@ -324,7 +324,7 @@ class Host:
   def terminate(self):
     if self.exists:
       # self.dns_delete()
-      self.EC2Connection.terminate_instances(self.id)
+      self.ec2Connection.terminate_instances(self.id)
       self.exists = False
       return("Terminated " + self.name)
     else:

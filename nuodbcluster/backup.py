@@ -15,7 +15,7 @@ class Backup():
                aws_access_key = None, aws_secret = None, aws_region = None, 
                domainConnection = None, ec2Connection = None, 
                rest_username=None, rest_password=None, rest_url=None, 
-               ssh_username=None, ssh_key=None, 
+               ssh_username=None, ssh_keyfile=None, 
                tarball_destination = None, backup_type = "auto"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
@@ -23,9 +23,9 @@ class Backup():
       
     if backup_type == "tarball" and tarball_destination == None:
       raise Error("Tarball backup must have a destination")
-    if not hasattr(self, 'domainConnection'):
+    if not hasattr(self, 'domainConnection') or self.domainConnection == None:
       self.domainConnection = nuodbcluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
-    if aws_access_key != None:
+    if self.ec2Connection == None and aws_access_key != None:
       if aws_region == None:
         raise Error("aws_region parameter must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
@@ -33,7 +33,8 @@ class Backup():
       self.ec2Connection = None
     if name not in self.domainConnection.get_databases():
       raise Error("Can not find database %s in domain provided")
-    self.update()
+    self.database = nuodbcluster.Database(name=self.name, domain = self.domainConnection)
+    print self.database.__dict__
     self.backup()
   
   def backup(self):
@@ -60,7 +61,7 @@ class Backup():
       else:
         return "/".join(common)
 
-    sm_processes = self.get_processes(type="SM")
+    sm_processes = self.database.get_processes(type="SM")
     if self.host != None:
       exists = False
       for process in sm_processes:
@@ -77,8 +78,7 @@ class Backup():
     uid = mysm['uid']
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
-    
-    backuphost = nuodbaws.Host(domainConnection = self.domainConnection, ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_username = self.ssh_username, ssh_key = self.ssh_key)
+    backuphost = nuodbaws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     print "Figure out what volume(s) to back up..."
     process_detail = self.domainConnection.rest_req(path="/".join(["processes",uid,"query"]))
     archive = {"dir": process_detail['configuration']['configuration']['archive'], "type": "archive"}
@@ -119,7 +119,7 @@ class Backup():
       if "ebs_volume" in archive['volume'] and self.backup_type in ["ebs", "auto", None]:
         # This is an amazon EBS volume
         name = self.__backup_ebs(archive['volume']['ebs_volume'], backuphost)
-        notification = "Created an EBS backup of %s with snapshot id %s" % (self.name, name)
+        notification = "Created an EBS backup of %s with snapshot id %s" % (self.name, name[1])
       # So does a zfs volume
       elif archive['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
         notification = self.__backup_zfs(
@@ -176,7 +176,7 @@ class Backup():
       dbname = ":".join([backup_type, self.name])
     else:
       dbname = self.name
-    description = "NuoDB Backup of %s from %s on %s" % (dbname, host.hostname, timestamp)
+    description = "NuoDB Backup of %s from %s on %s" % (dbname, host.name, timestamp)
     snapshot = self.ec2Connection.create_snapshot(volume_id = vol_id, description = description[0:255])
     snapshot.update()
     return (True, snapshot.id)
@@ -218,17 +218,6 @@ class Backup():
   def dump_data(self):
     return self.__dict__
   
-  def get_process(self, process_id=None):
-    return self.domainConnection.rest_req(action="GET", path="/".join(["processes", process_id]))
-  
-  def get_processes(self, type=None):
-    self.update()
-    processes = []
-    for process in self.processes:
-      if (type == "SM" and not process['transactional']) or (type == "TE" and process['transactional']) or type == None:
-          processes.append(process)
-    return processes
-  
   def start_process(self, type="SM", archive_dir= None):
     data = {"type": type, "dbname": self.name}
     if archive_dir != None:
@@ -253,11 +242,6 @@ class Backup():
         self.domainConnection.rest_req(action="DELETE", path="/".join(["processes", process_id]))
     else:
       raise Error("Process %s does not exist in this database" % process_id)
-  
-  def update(self):
-    d = self.domainConnection.rest_req("GET", "/".join(["databases", self.name]))
-    for k in d:
-      setattr(self, k, d[k])
     
 class Error(Exception):
   pass

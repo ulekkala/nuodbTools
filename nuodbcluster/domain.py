@@ -36,6 +36,7 @@ class Domain():
       db_url = "/".join([self.rest_url, "databases"])
       r = requests.get(db_url, auth=(rest_username, rest_password)) 
       if r.status_code != 200:
+        print "Bad result from %s" % db_url
         r.raise_for_status() 
       
     def get_databases(self):
