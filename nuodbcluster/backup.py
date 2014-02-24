@@ -83,7 +83,6 @@ class Backup():
     print "Figure out what volume(s) to back up..."
     process_detail = self.domainConnection.rest_req(path="/".join(["processes",uid,"query"]))
     archive = {"dir": process_detail['configuration']['configuration']['archive'], "type": "archive"}
-    print process_detail['configuration']['configuration']
     checklink = backuphost.get_directory_target(archive['dir'])
     if checklink != archive['dir']:
       archive['dir'] = checklink
