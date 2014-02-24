@@ -33,7 +33,7 @@ class NuoDBCluster:
       if ssh_keyfile != None and ssh_keyfile != "":
         if not os.path.exists(ssh_keyfile):
           raise Error("Can not find ssh private key %s" % self.ssh_keyfile)
-      if dns_domain == None or dns_domain == "None":
+      if dns_domain == None or dns_domain == "None" or dns_domain == "":
         self.dns_domain = "nuoDB"
         self.dns_emulate = True
       else:
@@ -60,12 +60,11 @@ class NuoDBCluster:
       else:
         basename = name
         increment = random.randrange(0,len(subnets))
-      host = ".".join([basename, self.cluster_name, zone])
-      fqdn = ".".join([host, self.dns_domain])
+      host = ".".join([basename, self.cluster_name, zone, self.dns_domain])
       if host not in stub:
         stub[host] = {}
       # Generate data for chef... is it a broker? peers?
-      agent_addr = fqdn
+      agent_addr = host
       if "zones" not in self.db['customers'][self.cluster_name]:
         self.db['customers'][self.cluster_name]['zones'] = {}
       if zone not in self.db['customers'][self.cluster_name]['zones']:
@@ -100,7 +99,6 @@ class NuoDBCluster:
         stub[host]['chef_data'] = chef_data
       else:
         isBroker = stub[host]['chef_data']['nuodb']['is_broker']
-      stub[host]["fqdn"] = fqdn
       stub[host]['ami'] = ami
       stub[host]['security_group_ids'] = security_group_ids
       stub[host]['subnet'] = subnets[len(stub) % len(subnets)]
@@ -117,7 +115,7 @@ class NuoDBCluster:
         instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
       template_vars = dict(
-                          hostname = stub["fqdn"],
+                          hostname = host,
                           chef_json = json.dumps(stub['chef_data'])
                           )
       f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.py"]))
@@ -125,21 +123,21 @@ class NuoDBCluster:
       f.close()
       userdata = template.substitute(template_vars)
       obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
-      print ("Waiting for %s to start" % obj.ext_fqdn),
+      print ("Waiting for %s to start" % obj.name),
       if obj.status() != "running":
         print("."),
         time.sleep(30) #Wait 30 seconds in between node starts
       print
       obj.update_data()
       if not self.dns_emulate:
-        print "Setting DNS for %s " % obj.ext_fqdn
+        print "Setting DNS for %s " % obj.name
         obj.dns_set()
       if wait_for_health:
         healthy = False
         count = 0
         tries = 60
         wait = 10
-        print "Waiting for agent on %s " % obj.ext_fqdn
+        print "Waiting for agent on %s " % obj.name
         while not healthy or count == tries:
           if obj.agent_running():
             healthy = True
@@ -148,11 +146,11 @@ class NuoDBCluster:
             time.sleep(wait)
           count += 1
         if not healthy:
-          print "Cannot reach agent on %s after %s seconds. Check firewalls and the host for errors." % (obj.ext_fqdn, str(tries * wait))
+          print "Cannot reach agent on %s after %s seconds. Check firewalls and the host for errors." % (obj.name, str(tries * wait))
           exit(1)
         print
       else:
-        print "Not waiting for agent on %s, node will come up asynchronously." % obj.ext_fqdn
+        print "Not waiting for agent on %s, node will come up asynchronously." % obj.name
       return obj
              
     def connect_zone(self, zone):
@@ -221,19 +219,23 @@ class NuoDBCluster:
         return []
     
     def get_host(self, host_id):
-      name, customer, zone = host_id.split(".")
+      split= host_id.split(".")
+      customer = split[1]
+      zone = split[2]
       if host_id in self.db['customers'][customer]['zones'][zone]['hosts']:
         return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]['obj']
       else:
         raise Error("No host found with id of '%s'" % host_id)
     
     def get_host_address(self, host_id):
-      name, customer, zone = host_id.split(".")
+      split= host_id.split(".")
+      customer = split[1]
+      zone = split[2]
       if host_id in self.db['customers'][customer]['zones'][zone]['hosts']:
         if self.dns_emulate:
           return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]['obj'].ext_ip
         else:
-          return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]['obj'].ext_fqdn
+          return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]['obj'].name
       else:
         raise Error("No host found with id of '%s'" % host_id)
     
@@ -259,16 +261,16 @@ class NuoDBCluster:
       for host_id in self.get_hosts():
         host = self.get_host(host_id)
         host.update_data()
-        print("Waiting for an IP for %s" % host.ext_fqdn),
+        print("Waiting for an IP for %s" % host.name),
         while len(host.ext_ip) == 0:
           print ("."),
           time.sleep(5)
           host.update_data()
         print("got %s" % host.ext_ip)
-        host_list.append([host.ext_fqdn, host.ext_ip])
+        host_list.append([host.name, host.ext_ip])
       for host_id in self.get_hosts():
         host = self.get_host(host_id)
-        print ("Waiting for ssh on %s." % host.ext_fqdn),
+        print ("Waiting for ssh on %s." % host.name),
         while not host.is_port_available(22):
           print ("."),
           time.sleep(5)
@@ -279,7 +281,7 @@ class NuoDBCluster:
           command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
           (rc, stdout, stderr) = host.ssh_execute(command)
           if rc != 0:
-            print "Unable to set DNS emulation for %s: %s" % (host.fqdn, stderr)
+            print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
         host.agent_action(action = "restart")
         host.webconsole_action(action = "restart")
       
