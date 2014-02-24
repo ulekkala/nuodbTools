@@ -256,17 +256,21 @@ def __main__(action = None):
         c['instance_type'] = static_config['instance_type']
     
     ### Populate zone data
-    
     if "zones" in static_config:
       print "Found this zone info:"
       for zone in sorted(static_config["zones"].keys()):
         s = static_config["zones"][zone]
         print "%s\t%s\t%s\t%s\t%s" % (zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
       res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
-      if res != "y":
-        c["zones"] = get_zone_info(c)
-      else:
+      if res == "y":
         c['zones'] = static_config["zones"]
+      else:
+        while res != "y":
+          c["zones"] = get_zone_info(c)
+          for zone in sorted(c["zones"].keys()):
+            s = c["zones"][zone]
+            print "%s\t%s\t%s\t%s\t%s" % (zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+          res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
     else:
       res = "n"
       while res != "y":
