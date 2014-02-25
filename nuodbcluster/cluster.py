@@ -49,7 +49,7 @@ class NuoDBCluster:
         raise Error("You must specify the target subnets in an array")
       # make sure ami is valid
       valid_amis = []
-      for each_ami in self.zones[zone].get_amis():
+      for each_ami in self.zones[zone].amis:
         valid_amis.append(each_ami.id)
       if ami not in valid_amis:
         raise Error("ami '%s' is not valid" % (ami))

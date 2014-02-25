@@ -117,7 +117,7 @@ def get_zone_info(c):
     # Choose AMI
     print
     print region + " --- Choose the AMI (Loading...) "
-    amis = zone_obj.get_amis()
+    amis = zone_obj.amis
     ami_dict = {}
     suggested = None
    
@@ -363,7 +363,7 @@ def __main__(action = None):
           myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
       mycluster.terminate_hosts()
       if not mycluster.dns_emulate:
-        res = user_prompt("Delete DNS records too? Do not so this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
+        res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
         if res == "y":
           mycluster.delete_dns()
     else:
