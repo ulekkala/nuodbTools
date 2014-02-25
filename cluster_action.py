@@ -36,7 +36,8 @@ def choose_from_list(params = [], suggested = None):
       suggest_prompt = "<----- SUGGESTED"
     else:
       suggest_prompt = ""
-    print "%s)  %s %s" % (i+1, params[i], suggest_prompt)
+    #print "%s)  %s %s" % (i+1, params[i], suggest_prompt)
+    print '{:2d}) {:25} {}'.format(i+1, params[i], suggest_prompt)
     i += 1
     options.append(i)
   return user_prompt("Choose one:", options) - 1
@@ -124,13 +125,13 @@ def get_zone_info(c):
     for ami in amis:
       if ami.architecture == "x86_64" and ami.description != None and len(ami.description) > 0 and "ami-" in ami.id and ami.platform != "windows":
         if ami.owner_alias == "amazon" and ami.id in page_cache:
-          ami_dict[ami.description] = {"id": ami.id, "location": ami.location}
+          ami_dict["  ".join([ami.id, ami.description])] = {"id": ami.id, "location": ami.location}
         elif ami.owner_alias != "amazon": 
-          ami_dict[ami.description] = {"id": ami.id, "location": ami.location}
+          ami_dict["  ".join([ami.id, ami.description])] = {"id": ami.id, "location": ami.location}
     ami_descriptions = sorted(ami_dict.keys()) 
     ami_descriptions.append("NONE OF THE ABOVE")
     for idx, desc in enumerate(ami_descriptions):
-      if desc == "Amazon Linux AMI x86_64 PV EBS":
+      if "Amazon Linux AMI x86_64 PV EBS" in desc:
         suggested = idx
     ami_choice = choose_from_list(ami_descriptions, suggested)
     if ami_choice == len(ami_descriptions) - 1:
@@ -148,7 +149,7 @@ def get_zone_info(c):
     subnet_descs = []
     subnet_ids = []
     for key in sorted(subnets.keys()):
-      subnet_descs.append("\t".join([subnets[key]['availability_zone'], subnets[key]['vpc_id'], subnets[key]['private_ip_address'], subnets[key]['description']]))
+      subnet_descs.append("{:10}\t{:12}\t{:15}\t{}".format(subnets[key]['availability_zone'], subnets[key]['vpc_id'], subnets[key]['private_ip_address'], subnets[key]['description']))
       subnet_ids.append(subnets[key]['subnet_id'])
     subnet_choices = choose_multiple_from_list(subnet_descs) 
     r[region]['subnets'] = []
@@ -181,11 +182,7 @@ def get_zone_info(c):
     sg_ids = []
     for group in security_groups:
       if group.vpc_id in r[region]['vpcs']:
-        if len(group.name) < 5:
-          separator = "\t\t"
-        else:
-          separator = "\t"
-        sg_descs.append(separator.join([group.name, group.description]))
+        sg_descs.append("{:20}    {}".format(group.name, group.description))
         sg_ids.append(group.id)
     sg_choices = choose_multiple_from_list(sg_descs)
     for choice in sg_choices:
@@ -260,7 +257,7 @@ def __main__(action = None):
       print "Found this zone info:"
       for zone in sorted(static_config["zones"].keys()):
         s = static_config["zones"][zone]
-        print "%s\t%s\t%s\t%s\t%s" % (zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+        print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
       res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
       if res == "y":
         c['zones'] = static_config["zones"]
@@ -269,7 +266,7 @@ def __main__(action = None):
           c["zones"] = get_zone_info(c)
           for zone in sorted(c["zones"].keys()):
             s = c["zones"][zone]
-            print "%s\t%s\t%s\t%s\t%s" % (zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+            print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
           res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
     else:
       res = "n"
@@ -278,7 +275,7 @@ def __main__(action = None):
         print "Here is your zone info:"
         for zone in sorted(c["zones"].keys()):
           s = c["zones"][zone]
-          print "%s\t%s\t%s\t%s\t%s" % (zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+          print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
         res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
       
     # Write out the config
