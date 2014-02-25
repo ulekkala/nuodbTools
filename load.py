@@ -1,15 +1,27 @@
+#!/usr/bin/python
 '''
 Created on Feb 25, 2014
 
 @author: rkourtz
 '''
 
+import argparse
 import nuodbcluster
 import sys
 import time
  
-threads = 1
-how_long_to_run = 10
+parser = argparse.ArgumentParser(description='Load a NuoDB cluster')
+parser.add_argument("-db", "--database", dest='database', action='store', help="Target database", required = True )
+parser.add_argument("-b", "--broker", dest='broker', action='store', help="A running broker", required = True )
+parser.add_argument("-u", "--user", dest='user', action='store', help="Database username", required = True )
+parser.add_argument("-p", "--password", dest='password', action='store', help="Database Password", required = True )
+parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of workers", type=int, default=1)
+parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
+parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="loadgen")
+args = parser.parse_args()
+
+threads = args.threads
+how_long_to_run = args.duration
 ratio = "5:2:1:0" # Selects:Inserts:Updates:Deletes
 
 print("Starting load")
@@ -20,7 +32,7 @@ updates = 0
 deletes = 0
 for mythread in range(1, threads+1):
   print "Initiating connection " + str(mythread)
-  loadgen = nuodbcluster.Load("loader" + str(mythread), "mydb", "db0.cluster1.us-west-2.nuodbcloud.net", "dba", "dba", {'schema': 'test'})
+  loadgen = nuodbcluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema})
   thread_tracker.append(loadgen)
 for each_thread in thread_tracker:
   each_thread.start_load(ratio)
