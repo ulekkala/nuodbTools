@@ -8,7 +8,7 @@ import boto.route53
 import nuodbaws
 import inspect, json, os, random, string, sys, time
 
-class NuoDBCluster:
+class Cluster:
     
     def __init__(self, 
                  alert_email = "alert@example.com",

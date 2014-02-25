@@ -286,7 +286,7 @@ def __main__(action = None):
     #### Actually do some work
     #######################################
     
-    mycluster =  nuodbcluster.NuoDBCluster(
+    mycluster =  nuodbcluster.Cluster(
                                            alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
                                            aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
                                            brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
@@ -344,7 +344,7 @@ def __main__(action = None):
       with open(config_file) as f:
         c = json.loads(f.read())
         f.close()
-      mycluster =  nuodbcluster.NuoDBCluster(
+      mycluster =  nuodbcluster.Cluster(
                                              alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
                                              aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
                                              brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
