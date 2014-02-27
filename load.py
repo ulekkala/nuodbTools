@@ -1,0 +1,54 @@
+#!/usr/bin/python
+'''
+Created on Feb 25, 2014
+
+@author: rkourtz
+'''
+
+import argparse
+import nuodbcluster
+import sys
+import time
+ 
+parser = argparse.ArgumentParser(description='Load a NuoDB cluster')
+parser.add_argument("-db", "--database", dest='database', action='store', help="Target database", required = True )
+parser.add_argument("-b", "--broker", dest='broker', action='store', help="A running broker", required = True )
+parser.add_argument("-u", "--user", dest='user', action='store', help="Database username", required = True )
+parser.add_argument("-p", "--password", dest='password', action='store', help="Database Password", required = True )
+parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of workers", type=int, default=1)
+parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
+parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="loadgen")
+args = parser.parse_args()
+
+threads = args.threads
+how_long_to_run = args.duration
+ratio = "5:2:1:0" # Selects:Inserts:Updates:Deletes
+
+print("Starting load")
+thread_tracker = []
+selects = 0
+inserts = 0
+updates = 0
+deletes = 0
+for mythread in range(1, threads+1):
+  print "Initiating connection " + str(mythread)
+  loadgen = nuodbcluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema})
+  thread_tracker.append(loadgen)
+for each_thread in thread_tracker:
+  each_thread.start_load(ratio)
+print "waiting for " + str(how_long_to_run) + " seconds"
+for i in range(0, how_long_to_run):
+  sys.stdout.write(".")
+  time.sleep(1)
+for each_thread in thread_tracker:
+  result = each_thread.stop_load()
+  each_thread.close()
+  selects += result['select']
+  inserts += result['insert']
+  updates += result['update']
+  deletes += result['delete']
+print "Done"
+print "Selects done:" + str(selects)
+print "Inserts done:" + str(inserts)
+print "Updates done:" + str(updates)
+print "Deletes done:" + str(deletes)

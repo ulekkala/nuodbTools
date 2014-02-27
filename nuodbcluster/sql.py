@@ -15,6 +15,9 @@ class sql():
                  ):
       self.connection = pynuodb.connect(dbname, host, username, password, options)
       
+    def close(self):
+      self.connection.close()
+      
     def execute(self, command, autocommit = False, associative = False):
       cursor = self.connection.cursor()
       cursor.execute(command)
