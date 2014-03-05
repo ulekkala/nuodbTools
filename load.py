@@ -9,8 +9,11 @@ import argparse
 import nuodbcluster
 import sys
 import time
- 
-parser = argparse.ArgumentParser(description='Load a NuoDB cluster')
+
+description = """
+This is a rudimentary NuoDB load generation script which uses the python driver to execute some SQL on a NuoDB cluster. It is not a benchmarking tool, just a validation one.
+"""
+parser = argparse.ArgumentParser(description=description)
 parser.add_argument("-db", "--database", dest='database', action='store', help="Target database", required = True )
 parser.add_argument("-b", "--broker", dest='broker', action='store', help="A running broker", required = True )
 parser.add_argument("-u", "--user", dest='user', action='store', help="Database username", required = True )
