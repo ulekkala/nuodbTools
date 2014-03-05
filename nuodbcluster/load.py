@@ -1,10 +1,12 @@
 import calendar, hashlib, nuodbcluster, pynuodb, random, threading, time
 
 class Load():
-  def __init__(self, name, database, broker, username, password, options=""):
+  def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, value_length = 100):
     self.name = name
     self.database = database
     self.broker = broker
+    self.initial_rows = initial_rows
+    self.value_length = value_length
     self.username = username
     self.password = password
     self.runload = False
@@ -19,7 +21,7 @@ class Load():
     self.dbconn.execute(sql, autocommit=True)
     self.__truncate()
     if self.__count() == 0:
-      for i in range(0, 100):
+      for i in range(0, self.initial_rows):
         self.insert()
   def close(self):
     self.dbconn.close()
@@ -27,18 +29,26 @@ class Load():
     sql = "SELECT COUNT(*) FROM " + self.table
     result = self.dbconn.execute(sql, associative = True);
     return result[0]['COUNT']
+  def delete(self):
+    myid = self.__get_random_row()
+    sql = "DELETE FROM " + self.table + " WHERE ID=" + str(myid)
+    self.dbconn.execute(sql, autocommit = True)
   def __get_random_row(self, associative = True):
     sql = "SELECT MIN(ID), MAX(ID) FROM " + self.table
     result = self.dbconn.execute(sql, associative = True);
     return random.randrange(int(result[0]['MIN']), int(result[0]['MAX']))
-    
+  def __get_random_value(self, length = 20):
+    ret = ""
+    for i in range(0, length):
+            ret += chr(random.randrange(65,125))
+    return ret
   def get_tables(self):
     sql = "SHOW TABLES"
     print self.dbconn.execute(sql, associative = True)
   def insert(self):
-    value = hashlib.sha224(str(time.clock())).hexdigest()
+    value = self.__get_random_value(self.value_length)
     sql = "insert into " + self.table.upper() + " (value) values ('" + value + "');"
-    self.dbconn.execute(sql)
+    self.dbconn.execute(sql, autocommit = True)
   def load_threader (self, ratio):
     while self.runload:
       ratios = ratio.split(":")
@@ -60,7 +70,7 @@ class Load():
         self.query_info['update'] += 1
       #deletes
       for i in range(0, int(ratios[3])):
-        #Don't actually delete now
+        self.delete()
         self.query_info['delete'] += 1
     self.query_info['stop_time'] = calendar.timegm(time.gmtime())
 	    	
@@ -87,7 +97,7 @@ class Load():
     self.dbconn.execute(sql)
 
   def update(self):
-    value = hashlib.sha224(str(time.clock())).hexdigest()
+    value = self.__get_random_value(self.value_length)
     myid = self.__get_random_row()
     sql = "UPDATE " + self.table + " SET value='" + value + "' WHERE ID=" + str(myid)
-    self.dbconn.execute(sql)
+    self.dbconn.execute(sql, autocommit = True)

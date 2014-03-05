@@ -21,11 +21,14 @@ parser.add_argument("-p", "--password", dest='password', action='store', help="D
 parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of workers", type=int, default=1)
 parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
 parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="loadgen")
+parser.add_argument("-r", "--ratio", dest='ratio', action='store', help="Ratio of SELECT:INSERT:UPDATE:DELETE", default="5:2:1:1")
+parser.add_argument("--initial-rows", dest='initial_rows', action='store', help="Each connection pre-populates a table with a certain number of random data rows. This is how many rows to set up.", default=100)
+parser.add_argument("--data-length", dest='value_length', action='store', help="Each row has a random string of the length defined here as a value", default=100)
 args = parser.parse_args()
 
 threads = args.threads
 how_long_to_run = args.duration
-ratio = "5:2:1:0" # Selects:Inserts:Updates:Deletes
+ratio = args.ratio
 
 print("Starting load")
 thread_tracker = []
@@ -35,7 +38,7 @@ updates = 0
 deletes = 0
 for mythread in range(1, threads+1):
   print "Initiating connection " + str(mythread)
-  loadgen = nuodbcluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema})
+  loadgen = nuodbcluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema}, initial_rows = int(args.initial_rows), value_length = int(args.value_length))
   thread_tracker.append(loadgen)
 for each_thread in thread_tracker:
   each_thread.start_load(ratio)
