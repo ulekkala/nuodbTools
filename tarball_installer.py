@@ -4,11 +4,21 @@ Created on Mar 4, 2014
 
 @author: rkourtz@nuodb.com
 
-This script allows for the installation of multiple copies of NuoDB on a single host, each in a separate directory
 '''
+help = """
+NuoDB Tarball Installer
+...
+This script allows for the installation and starting of many NuoDB instances on a single machine, for example in a continuous integration environment.
+Each NuoDB installation is a single node only, and therefore does not require a license.
+After being passed a HTTP url for the tarball package download and a unique directory the script will search for an open 10 port range between ports 48000 and 49000 (1 for the broker, 9 for subprocesses- TEs and SMs).
+If you use the "data" directory inside the install target directory for your SM archive and journals then the environment may be created fresh each time.
+At the completion of this script it will present you with a broker port for your clients to connect to.
+DO NOT USE THIS SCRIPT IN PRODUCTION - IT GIVES YOU NONE OF THE BENEFITS OF NUODB.
+"""
 import argparse
 import os
 import calendar, time
+import re
 import shutil
 import socket
 import subprocess
@@ -18,12 +28,13 @@ import urllib2
 
 url = "http://download.nuohub.org/nuodb-2.0.3.linux.x64.tar.gz"
 
-parser = argparse.ArgumentParser(description='Install portable instance of NuoDB')
+parser = argparse.ArgumentParser(description=help)
 parser.add_argument("-a", "--action", dest='action', action='store', help="action", required = True, choices=["install", "uninstall"])
-parser.add_argument("-b", "--bootstrap-script", dest="bootstrap", action = "store", required = False, help="Use this script to start up subprocesses")
+# TBD
+#parser.add_argument("-b", "--bootstrap-script", dest="bootstrap", action = "store", required = False, help="Use this script to start up subprocesses")
 parser.add_argument("-d", "--dir", dest='directory', action='store', help="Target directory", required = True )
 parser.add_argument("--url", dest='url', action='store', help="URL to tarball location", default = url, required = False )
-parser.add_argument("-s", "--silent", dest='silent', action='store_true', help="Don't print any output until the e", default = False, required = False )
+parser.add_argument("-s", "--silent", dest='silent', action='store_true', help="Don't print any output until the end", default = False, required = False )
 parser.add_argument("-v", "--verbose", dest='verbose', action='store_true', help="Verbose", default = False, required = False )
 args = parser.parse_args()
 
@@ -138,7 +149,10 @@ if args.action == "install":
   f = open("/".join([args.directory, "etc", "brokerport"]), "w")
   f.write(str(portRange))
   f.close()
-  print "Broker available at *:%s" % str(portRange)
+  if args.silent:
+    print "localhost:%s" % str(portRange)
+  else:
+    print "Broker available at localhost:%s" % str(portRange)
 elif args.action == "uninstall":
   if not os.path.exists(args.directory):
     error("Can't find target directory %s" % args.directory)
@@ -153,7 +167,11 @@ elif args.action == "uninstall":
     agentport = int(f.read().rstrip())
     f.close()
   else:
-    agentport = 48000 ##### Fix this
+    default_propsfile = "/".join([args.directory, "etc", "default.properties"])
+    for line in open(default_propsfile):
+      if "port = " in line:
+        agentport = re.sub("[^0-9]", "", line).rstrip()
+        break
   pids = []
   agentpidfile = "/".join([args.directory, "var", "run", "nuoagent.pid"])
   if os.path.exists(agentpidfile):
