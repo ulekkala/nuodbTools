@@ -30,6 +30,7 @@ NuoDB Amazon Web Services quickstart
     * [Python 2.6 or higher](http://www.python.org)
     * [Boto](https://github.com/boto/boto/tree/master)
     * [Paramiko](https://github.com/paramiko/paramiko)
+    * [Requests](http://docs.python-requests.org/en/latest/)
     * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
   
 ## Execution:
