@@ -1,7 +1,6 @@
-import boto.ec2
-import boto.route53
+
 from paramiko import SSHClient, SFTPClient
-import base64, inspect, json, os, socket, string, subprocess, sys, tempfile, time
+import inspect, json, os, socket, string, subprocess, sys, tempfile, time
 
 class Host:
   def __init__(self, 
@@ -26,7 +25,7 @@ class Host:
       setattr(self, i, values[i])
     if self.ssh_user == None:
       self.localMachine = True
-      self.hostname = local_hostname
+      self.hostname = self.execute_command("hostname")[1]
     else:
       self.hostname = name
       self.localMachine = False

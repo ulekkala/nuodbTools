@@ -154,7 +154,7 @@ class Cluster:
       return obj
              
     def connect_zone(self, zone):
-      self.zones[zone] = nuodbTools.aws.NuoDBzone(zone)
+      self.zones[zone] = nuodbTools.aws.Zone(zone)
       self.zones[zone].connect(aws_access_key=self.aws_access_key, aws_secret=self.aws_secret)
       if "customers" not in self.db:
         self.db['customers'] = {}

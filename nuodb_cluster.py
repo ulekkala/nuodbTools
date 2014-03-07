@@ -79,7 +79,7 @@ def get_zone_info(c):
   r = {}
   zone_count = user_prompt("How many AWS regions? (1-7)? ", range(1,8))
   # open a Boto connection to get metadata
-  aws_conn = nuodbTools.aws.NuoDBzone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
+  aws_conn = nuodbTools.aws.Zone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
   available_zones = aws_conn.get_all_regions()
   if zone_count == "7":
     for zone in available_zones:
@@ -100,7 +100,7 @@ def get_zone_info(c):
   for region in r:
     # Server count 
     r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1,20))
-    zone_obj = nuodbTools.aws.NuoDBzone(region)
+    zone_obj = nuodbTools.aws.Zone(region)
     zone_conn = zone_obj.connect(c["aws_access_key"], c["aws_secret"])
     
     # Validate SSH Key
