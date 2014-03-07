@@ -5,7 +5,7 @@
 * If this is your first database and you want to get up and running you have a few options (in order of complexity):
   * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
   * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef)
-  * [Create a NuoDB cluster in Amazon](https://github.com/nuodb/dbaas/nuodb_cluster.py)
+  * [Create a NuoDB cluster in Amazon](#cluster_instructions)
 * Once you have a running database you can take advantage of the tools provided in this package
 
 ## What are the tools provided?
@@ -14,9 +14,9 @@
 * `nuodb_load.py` Simple load generator. For testing only. For a better benchmarking suite go [here](http://tbd)
 * `nuodb_tarball_installer.py` If you want to install multiple parallel instances of NuoDB on a single host (for example in build environments)
 
-## Using `nuodb_cluster.py`:
+<a name="cluster_instructions"></a>## Using `nuodb_cluster.py`:
 
-## Preparation:
+### Preparation:
 * DNS Setup
   * The best and easiest way to use these scripts is to use a [Amazon Route53](http://aws.amazon.com/route53/) hosted domain. If you do not have one the script will attempt to emulate DNS by populating /etc/hosts in each of your servers.
 * Determine which regions to use
@@ -43,7 +43,7 @@
     * [Requests](http://docs.python-requests.org/en/latest/)
     * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
   
-## Execution:
+### Execution:
 * Git clone this repo to a local directory on your machine `git clone http://www.github.com/nuodb/dbaas`
 * Run nuodb_cluster.py and enter the data you collected above
 * If the script completes correctly it will display the address of a running web console.
