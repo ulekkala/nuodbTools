@@ -4,7 +4,7 @@
 ## Quckstart
 * If this is your first database and you want to get up and running you have a few options (in order of complexity):
   * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
-  * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef)
+  * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef#vagrant)
   * [Create a NuoDB cluster in Amazon](#cluster_instructions)
 * Once you have a running database you can take advantage of the tools provided in this package
 
@@ -14,7 +14,8 @@
 * `nuodb_load.py` Simple load generator. For testing only. For a better benchmarking suite go [here](http://tbd)
 * `nuodb_tarball_installer.py` If you want to install multiple parallel instances of NuoDB on a single host (for example in build environments)
 
-<a name="cluster_instructions"></a>## Using `nuodb_cluster.py`:
+<a name="cluster_instructions"></a>
+## Using `nuodb_cluster.py`:
 
 ### Preparation:
 * DNS Setup
