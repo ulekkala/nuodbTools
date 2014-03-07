@@ -279,7 +279,7 @@ class Cluster:
           hostname = line[0]
           ip = line[1]
           command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
-          (rc, stdout, stderr) = host.ssh_execute(command)
+          (rc, stdout, stderr) = host.execute_command(command)
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
         host.agent_action(action = "restart")

@@ -22,7 +22,7 @@ parser.add_argument("-t", "--threads", dest='threads', action='store', help="Num
 parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
 parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="loadgen")
 parser.add_argument("-r", "--ratio", dest='ratio', action='store', help="Ratio of SELECT:INSERT:UPDATE:DELETE", default="5:2:1:1")
-parser.add_argument("--initial-rows", dest='initial_rows', action='store', help="Each connection pre-populates a table with a certain number of random data rows. This is how many rows to set up.", default=100)
+parser.add_argument("--initial-rows", dest='initial_rows', action='store', help="Each connection pre-populates a table with a certain number of random data rows. This is how many rows to insert at start.", default=100)
 parser.add_argument("--data-length", dest='value_length', action='store', help="Each row has a random string of the length defined here as a value", default=100)
 args = parser.parse_args()
 

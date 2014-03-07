@@ -1,14 +1,10 @@
-import calendar, hashlib, nuodbcluster, pynuodb, random, threading, time
+import calendar, hashlib, inspect, nuodbcluster, pynuodb, random, threading, time
 
 class Load():
-  def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, value_length = 100):
-    self.name = name
-    self.database = database
-    self.broker = broker
-    self.initial_rows = initial_rows
-    self.value_length = value_length
-    self.username = username
-    self.password = password
+  def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, truncate_table = True, value_length = 100):
+    args, _, _, values = inspect.getargvalues(inspect.currentframe())
+    for i in args:
+      setattr(self, i, values[i])
     self.runload = False
     self.table = name
     self.threads = []
@@ -19,7 +15,8 @@ class Load():
   def __create_data(self):
     sql = "CREATE TABLE IF NOT EXISTS " + self.table + " (ID BIGINT NOT NULL generated always as identity  primary key, VALUE STRING NOT NULL)"
     self.dbconn.execute(sql, autocommit=True)
-    self.__truncate()
+    if self.truncate_table:
+      self.__truncate()
     if self.__count() == 0:
       for i in range(0, self.initial_rows):
         self.insert()

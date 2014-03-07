@@ -1,14 +1,11 @@
 import boto.ec2
 import boto.route53
 from paramiko import SSHClient, SFTPClient
-import base64, inspect, json, os, socket, string, sys, tempfile, time
+import base64, inspect, json, os, socket, string, subprocess, sys, tempfile, time
 
 class Host:
   def __init__(self, 
                name, 
-               ec2Connection = None, 
-               Route53Connection = None, 
-               dns_domain = None,
                advertiseAlt = False, 
                agentPort = 48004, 
                altAddr = "",
@@ -17,28 +14,23 @@ class Host:
                domainPassword ="bird", 
                enableAutomation = False,
                enableAutomationBootstrap = False,
-               hostname = None,
                isBroker = False, 
                portRange = 48005, 
                peers = [],
-               ssh_user ="ec2-user", # User to ssh in as 
-               ssh_key = None, # Name of AWS Keypair
+               ssh_user = None, # User to ssh in as 
                ssh_keyfile = None, # The private key on the local file system
                region = "default",
                web_console_port = "8080"):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
-    self.exists = False
-    if self.dns_domain != None and self.dns_domain not in self.name:
-      self.name = ".".join([self.name, self.dns_domain])
-
-    for reservation in self.ec2Connection.get_all_reservations():
-      for instance in reservation.instances:
-        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
-          self.exists = True
-          self.instance = instance
-          self.update_data()         
+    if self.ssh_user == None:
+      self.localMachine = True
+      self.hostname = local_hostname
+    else:
+      self.hostname = name
+      self.localMachine = False
+    self.exists = True      
 
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
@@ -53,15 +45,6 @@ class Host:
       ip = self.ext_ip 
     port = self.agentPort
     return self.is_port_available(port, ip)
-    
-  @property
-  def amazon_data(self):
-    metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
-    (return_code, null, stderr) = self.execute_command(metadata_cmd)
-    if return_code != 0:
-      raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
-    amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
-    return amazon_data
   
   def apply_license(self, nuodblicense):
         if not self.isBroker:
@@ -74,103 +57,38 @@ class Host:
         for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
             if self.execute_command(command)[0] != 0:
                 sys.exit("Failed ssh execute on command " + command)
-                
-  def attach_volume(self, size, mount_point):
-        if not self.exists:
-            return("Node " + self.name + " doesn't exist")
-        device = ""
-        # find suitable device
-        for letter in list(string.ascii_lowercase):
-            if len(device) == 0:
-                command = "ls /dev | grep sd" + letter
-                if self.execute_command(command)[0] > 0:
-                    device = "/".join(["", "dev", "sd" + letter])
-                    print "Found " + device
-        if len(device) == 0:
-            sys.exit("Could not find a suitable device for mounting")
-        volume = self.ec2Connection.create_volume(size, self.region)
-        while volume.status != "available":
-            volume.update()
-            time.sleep(1)
-        self.ec2Connection.attach_volume(volume.id, self.instance.id, device)
-        while volume.attachment_state() != "attached":
-            volume.update()
-            time.sleep(1)
-        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mkfs", "-t ext4", device]), " ".join(["sudo", "mount", device, mount_point])]:
-            print command
-            self.execute_command(command)
-        return self.execute_command("mount | grep " + mount_point)[0]
         
   def console_action(self, action):
-        command = "sudo service nuoautoconsole " + action
-        if self.execute_command(command)[0] != 0:
-                return "Failed ssh execute on command " + command
-            
-  def create(self, ami, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
-        if not self.exists:
-            if userdata != None:
-              self.userdata = userdata
-            interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
-            interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
-            self.exists = True
-            for instance in reservation.instances:
-                self.instance = instance
-                self.update_data()
-                instance.add_tag("Name", self.name)
-            return self
-        else:
-            print("Node " + self.name + " already exists. Not starting again.")
-            self.update_data()
-            return self
-    
-  def dns_delete(self):
-        zone = self.Route53Connection.get_zone(self.dns_domain)
-        for fqdn in [self.name]:
-            if zone.find_records(fqdn, "A") != None:
-                zone.delete_a(fqdn)
+    command = "sudo service nuoautoconsole " + action
+    if self.execute_command(command)[0] != 0:
+      return "Failed ssh execute on command " + command
   
-  def dns_set(self, type = "A", record = None, value = None):
-        zone = self.Route53Connection.get_zone(self.dns_domain)
-        if record != None:
-          records = {record: value}
-        else:
-          while self.int_ip == None or self.ext_ip == None or len(self.int_ip) == 0 or len(self.ext_ip) == 0:
-            self.update_data()
-            print "Waiting for IPs..."
-            time.sleep(5)
-          records = {self.name: self.ext_ip}.iteritems()
-        for fqdn, value in records:
-          if type == "TXT":
-            pass
-          else:
-            if zone.find_records(fqdn, "A") != None:
-                zone.update_a(fqdn, value=value, ttl=60)
-            else:
-                zone.add_a(fqdn, value=value)
-    
-  def __get_amazon_field(self, key, metadata_cmd):
-    if len(key) == 0:
-      raise Error("Key length of zero! Should not be here")
-    cmd = metadata_cmd + key
-    if key[-1] != "/":
-      data = self.execute_command(cmd)[1]
-      data_array = data.split("\r\n")
-      if len(data_array) > 1:
-        return data_array
-      else:
-        return data
+  def copy(self, local_file, remote_file):  
+    if self.localMachine:
+      command = "cp %s %s" % (local_file, remote_file)
+      return self.execute_command(command)
+    else:  
+      if not hasattr(self, 'ssh_connection'):
+        self.__get_ssh_connection()
+      sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
+      obj = sftp.put(local_file, remote_file)
+      return (0, "Copied to %s" % obj.__str__(), "")
+        
+  def execute_command(self, command, nbytes = "99999"):
+    if self.localMachine:
+      p = subprocess.Popen([command], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+      stdout, stderr = p.communicate()
+      exit_code = p.returncode
     else:
-      subkeys = self.execute_command(cmd)[1].split("\r\n")
-      dataset = {}
-      for subkey in subkeys:
-        if len(subkey) > 0:
-          if subkey[-1] == "/":
-            keyname = subkey[0:len(subkey[0:-1])]
-          else:
-            keyname = subkey
-          dataset[keyname] = self.__get_amazon_field(key = "".join([key, subkey]), metadata_cmd = metadata_cmd)
-      return dataset
+      if not hasattr(self, 'ssh_connection'):
+        self.__get_ssh_connection()
+      channel = self.ssh_connection.get_transport().open_session()
+      channel.get_pty()
+      channel.exec_command(command)
+      exit_code = channel.recv_exit_status()
+      stdout = channel.recv(nbytes)
+      stderr = channel.recv_stderr(nbytes)
+    return (exit_code, stdout, stderr)
     
   def get_directory_target(self, dir):
     #resolves symlinks to find the actual directory
@@ -256,23 +174,6 @@ class Host:
             if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         return "OK"      
-
-  def copy(self, local_file, remote_file):    
-        if not hasattr(self, 'ssh_connection'):
-            self.__get_ssh_connection()
-        sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
-        sftp.put(local_file, remote_file)
-
-  def execute_command(self, command, nbytes = "99999"):
-    if not hasattr(self, 'ssh_connection'):
-      self.__get_ssh_connection()
-    channel = self.ssh_connection.get_transport().open_session()
-    channel.get_pty()
-    channel.exec_command(command)
-    exit_code = channel.recv_exit_status()
-    stdout = channel.recv(nbytes)
-    stderr = channel.recv_stderr(nbytes)
-    return (exit_code, stdout, stderr)
       
   def status(self):
     if self.exists:
@@ -324,12 +225,6 @@ class Host:
         else:
           target = device_alias_fields[10]
         aliases[device_alias_fields[8]] = target
-    if self.ec2Connection != None:
-      volumes = self.ec2Connection.get_all_volumes()
-      for volume in volumes:
-        v = volume.attach_data
-        if v.status == "attached" and v.instance_id== self.instance.id:
-          infra_devices[v.device] = v.id
     for line in mount_lines:
       if len(line) > 0:
         fields = line.split(" ")

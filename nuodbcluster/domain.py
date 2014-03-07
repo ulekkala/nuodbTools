@@ -64,6 +64,9 @@ class Domain():
         path = path[1:len(path)]
       url = "/".join([self.rest_url, path])
       headers = {"Accept": "application/json", "Content-type": "application/json"}
+      if type(data) is dict:
+        data = json.dumps(data)
+      print data
       if action == "POST":
         req = requests.post(url, data=data, auth=(self.rest_username, self.rest_password), headers=headers)
       elif action == "PUT":
@@ -77,7 +80,10 @@ class Domain():
       else:  # Assume GET
         req = requests.get(url, auth=(self.rest_username, self.rest_password), headers=headers)
       if req.status_code == 200:
-        return req.json()
+        if len(req.text) > 0:
+          return req.json()
+        else:
+          return {}
       else:
         print req.content
         req.raise_for_status()
