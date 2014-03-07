@@ -1,4 +1,4 @@
-import calendar, hashlib, inspect, nuodbcluster, pynuodb, random, threading, time
+import calendar, hashlib, inspect, nuodbTools.cluster, pynuodb, random, threading, time
 
 class Load():
   def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, truncate_table = True, value_length = 100):
@@ -8,7 +8,7 @@ class Load():
     self.runload = False
     self.table = name
     self.threads = []
-    self.dbconn = nuodbcluster.sql(database, broker, username, password, options)
+    self.dbconn = nuodbTools.cluster.sql(database, broker, username, password, options)
         # self.dbconn.auto_commit(1)
     self.__create_data()
 # self.get_tables()

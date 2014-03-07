@@ -6,7 +6,7 @@ Created on Feb 25, 2014
 '''
 
 import argparse
-import nuodbcluster
+import nuodbTools.cluster
 import sys
 import time
 
@@ -38,7 +38,7 @@ updates = 0
 deletes = 0
 for mythread in range(1, threads+1):
   print "Initiating connection " + str(mythread)
-  loadgen = nuodbcluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema}, initial_rows = int(args.initial_rows), value_length = int(args.value_length))
+  loadgen = nuodbTools.cluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema}, initial_rows = int(args.initial_rows), value_length = int(args.value_length))
   thread_tracker.append(loadgen)
 for each_thread in thread_tracker:
   each_thread.start_load(ratio)

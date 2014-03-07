@@ -1,9 +1,20 @@
 
-NuoDB Amazon Web Services quickstart
-* What do these scripts do?
-  These scripts allow you to create a fully functional [NuoDB](http://www.nuodb.com) database in AWS, with all the bells and whistles you would expect.
+[NuoDB](http://www.nuodb.com) Tools
+===========
+## Quckstart
+* If this is your first database and you want to get up and running you have a few options (in order of complexity):
+  * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
+  * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef)
+  * [Create a NuoDB cluster in Amazon](https://github.com/nuodb/dbaas/nuodb_cluster.py)
+* Once you have a running database you can take advantage of the tools provided in this package
 
-## How to use this module:
+## What are the tools provided?
+* `nuodb_backup.py` Take backups of a running NuoDB database 
+* `nuodb_cluster.py` Allows you to create a fully functional multi-node and multi-region sandbox database in AWS
+* `nuodb_load.py` Simple load generator. For testing only. For a better benchmarking suite go [here](http://tbd)
+* `nuodb_tarball_installer.py` If you want to install multiple parallel instances of NuoDB on a single host (for example in build environments)
+
+## Using `nuodb_cluster.py`:
 
 ## Preparation:
 * DNS Setup
@@ -26,14 +37,13 @@ NuoDB Amazon Web Services quickstart
   * You should know the name of valid ssh key for each environment and have the private keys for your account accessible.
   * You should know your AWS access key and AWS secret key
 * Python required modules.
-  * Make sure the following are installed:
-    * [Python 2.6 or higher](http://www.python.org)
+  * The package will install the following dependencies:
     * [Boto](https://github.com/boto/boto/tree/master)
     * [Paramiko](https://github.com/paramiko/paramiko)
     * [Requests](http://docs.python-requests.org/en/latest/)
     * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
   
 ## Execution:
-* Git clone this repo to a local directory on your machine
-* Run nuodb.py and follow the prompts.
+* Git clone this repo to a local directory on your machine `git clone http://www.github.com/nuodb/dbaas`
+* Run nuodb_cluster.py and enter the data you collected above
 * If the script completes correctly it will display the address of a running web console.

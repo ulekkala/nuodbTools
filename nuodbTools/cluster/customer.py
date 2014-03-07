@@ -6,7 +6,7 @@ Created on Feb 20, 2014
 import inspect
 import json
 import math
-import nuodbcluster
+import nuodbTools.cluster
 import re
 import uuid
 
@@ -61,7 +61,7 @@ class Customer():
     databases = self.domain.get_databases()
     for database in databases:
       if re.match("^%s-" % self.alias, database):
-        database_list[database] = nuodbcluster.Database(database, self.domain)
+        database_list[database] = nuodbTools.cluster.Database(database, self.domain)
     self.databases_cached = database_list
     return self.databases_cached
   

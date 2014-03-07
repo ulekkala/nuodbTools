@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import argparse, json, nuodbcluster, os
+import argparse, json, nuodbTools.cluster, os
 description="""
 NuoDB Backup script
 This script will attempt to autodiscover stuff and backup more stuff.
@@ -22,7 +22,7 @@ parser.add_argument("--tarball-dest", dest='tarball_destination', action='store'
 args = parser.parse_args()
 
 
-db = nuodbcluster.Backup(database = args.database, host = args.host,
+db = nuodbTools.cluster.Backup(database = args.database, host = args.host,
                                      aws_access_key=args.aws_key, aws_secret=args.aws_secret, 
                                      aws_region = args.aws_region, rest_url = args.rest_url, 
                                      rest_username = args.rest_username, rest_password = args.rest_password, 

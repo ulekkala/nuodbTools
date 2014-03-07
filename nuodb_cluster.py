@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
-import nuodbaws
-import nuodbcluster
+import nuodbTools.cluster
 import json
 import os
 import sys
@@ -80,7 +79,7 @@ def get_zone_info(c):
   r = {}
   zone_count = user_prompt("How many AWS regions? (1-7)? ", range(1,8))
   # open a Boto connection to get metadata
-  aws_conn = nuodbaws.NuoDBzone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
+  aws_conn = nuodbTools.aws.NuoDBzone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
   available_zones = aws_conn.get_all_regions()
   if zone_count == "7":
     for zone in available_zones:
@@ -101,7 +100,7 @@ def get_zone_info(c):
   for region in r:
     # Server count 
     r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1,20))
-    zone_obj = nuodbaws.NuoDBzone(region)
+    zone_obj = nuodbTools.aws.NuoDBzone(region)
     zone_conn = zone_obj.connect(c["aws_access_key"], c["aws_secret"])
     
     # Validate SSH Key
@@ -286,7 +285,7 @@ def __main__(action = None):
     #### Actually do some work
     #######################################
     
-    mycluster =  nuodbcluster.Cluster(
+    mycluster =  nuodbTools.cluster.Cluster(
                                            alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
                                            aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
                                            brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
@@ -344,7 +343,7 @@ def __main__(action = None):
       with open(config_file) as f:
         c = json.loads(f.read())
         f.close()
-      mycluster =  nuodbcluster.Cluster(
+      mycluster =  nuodbTools.cluster.Cluster(
                                              alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
                                              aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
                                              brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],

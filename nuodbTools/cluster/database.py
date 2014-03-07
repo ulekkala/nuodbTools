@@ -1,4 +1,4 @@
-import nuodbcluster
+import nuodbTools.cluster
 
 class Database():
     def __init__(self, name, domain = None):

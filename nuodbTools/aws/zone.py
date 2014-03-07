@@ -1,6 +1,6 @@
 import boto.ec2
 
-class NuoDBzone:
+class Zone:
     def __init__(self, name):
         self.name = name
     def connect(self, aws_access_key, aws_secret):
