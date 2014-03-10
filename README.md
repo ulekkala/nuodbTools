@@ -16,6 +16,7 @@
 
 <a name="cluster_instructions"></a>
 ## Using `nuodb_cluster.py`:
+* This script allows you to spin up the necessary services to run a NuoDB cluster in [Amazon EC2](http://aws.amazon.com/ec2/)
 
 ### Preparation:
 * DNS Setup

@@ -35,9 +35,10 @@ class Host:
 
     for reservation in self.ec2Connection.get_all_reservations():
       for instance in reservation.instances:
-        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
+        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running' or instance.state == 'pending':
           self.exists = True
           self.instance = instance
+          self.zone = instance._placement
           self.update_data()         
 
   def agent_action(self, action):
@@ -75,7 +76,7 @@ class Host:
             if self.execute_command(command)[0] != 0:
                 sys.exit("Failed ssh execute on command " + command)
                 
-  def attach_volume(self, size, mount_point):
+  def attach_volume(self, size, mount_point, snapshot = None):
         if not self.exists:
             return("Node " + self.name + " doesn't exist")
         device = ""
@@ -87,8 +88,9 @@ class Host:
                     device = "/".join(["", "dev", "sd" + letter])
                     print "Found " + device
         if len(device) == 0:
-            sys.exit("Could not find a suitable device for mounting")
-        volume = self.ec2Connection.create_volume(size, self.region)
+            return(False, "Could not find a suitable device for mounting")
+        volume = self.ec2Connection.create_volume(size, self.zone, snapshot = snapshot)
+        print volume.__dict__
         while volume.status != "available":
             volume.update()
             time.sleep(1)
@@ -96,8 +98,9 @@ class Host:
         while volume.attachment_state() != "attached":
             volume.update()
             time.sleep(1)
-        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mkfs", "-t ext4", device]), " ".join(["sudo", "mount", device, mount_point])]:
-            print command
+        if snapshot == None:
+          self.execute_command(" ".join(["sudo", "mkfs", "-t ext4", device]))
+        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
             self.execute_command(command)
         return self.execute_command("mount | grep " + mount_point)[0]
         
@@ -106,7 +109,7 @@ class Host:
         if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
             
-  def create(self, ami, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
+  def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None):
         if not self.exists:
             if userdata != None:
               self.userdata = userdata
@@ -117,6 +120,7 @@ class Host:
             for instance in reservation.instances:
                 self.instance = instance
                 self.update_data()
+                self.zone = instance._placement
                 instance.add_tag("Name", self.name)
             return self
         else:
@@ -180,17 +184,23 @@ class Host:
     return stdout.rstrip()
     
   def __get_ssh_connection(self):
-        try:
-            host = socket.gethostbyname(self.name)
-        except:
-            host = self.ext_ip
-        self.ssh_connection = SSHClient()
-        self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
-        # self.ssh_connection.load_system_host_keys()
-        if self.ssh_keyfile != None:
-          self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
-        else:
-          self.ssh_connection.connect(host, username=self.ssh_user)
+    try:
+      host = socket.gethostbyname(self.name)
+    except:
+      host = self.ext_ip
+    self.ssh_connection = SSHClient()
+    self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
+    # self.ssh_connection.load_system_host_keys()
+    if self.ssh_keyfile != None:
+      try:
+        self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
+      except Error, e:
+        print "Unable to SSH to %s with username %s and key %s: %s" % (host, self.ssh_user, self.ssh_keyfile, e)
+    else:
+      try:
+        self.ssh_connection.connect(host, username=self.ssh_user)
+      except Error, e:
+        print "Unable to SSH to %s with username %s: %s" % (host, self.ssh_user, e)
  
   def health(self):
     return self.execute_command("sudo service nuoagent status")[0]
@@ -275,10 +285,10 @@ class Host:
     return (exit_code, stdout, stderr)
       
   def status(self):
-    if self.exists:
+    try:
       self.update_data()
       return self.instance.state
-    else:
+    except:
       return "Host does not exist"
           
   def terminate(self):

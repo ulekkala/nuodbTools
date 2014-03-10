@@ -41,6 +41,27 @@ class Zone:
         for arg in networkinterface.__dict__:
           subnets[id][arg] = networkinterface.__dict__[arg]
       return subnets
+    @property
+    def instances(self):
+      instances = []
+      for reservation in self.connection.get_all_reservations():
+        for instance in reservation.instances:
+          i = instance.__dict__
+          if "Name" in instance.__dict__['tags']:
+            i['name'] = instance.__dict__['tags']['Name']
+          else:
+            i['name'] = ""
+          instances.append(i)
+      return instances
+    @property
+    def snapshots(self):
+      return self.connection.get_all_snapshots(owner="self")
+    @property
+    def volumes(self):
+      return self.connection.get_all_volumes()
+          
+          
+          
 
 class Error(Exception):
   pass

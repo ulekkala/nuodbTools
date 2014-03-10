@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import nuodbTools.aws
 import nuodbTools.cluster
 import json
 import os
