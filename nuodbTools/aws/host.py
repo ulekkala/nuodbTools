@@ -35,14 +35,15 @@ class Host:
 
     for reservation in self.ec2Connection.get_all_reservations():
       for instance in reservation.instances:
-        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running':
+        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running' or instance.state == 'pending':
           self.exists = True
           self.instance = instance
+          self.zone = instance._placement
           self.update_data()         
 
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
-    (rc, stdout, stderr) = self.ssh_execute(command)
+    (rc, stdout, stderr) = self.execute_command(command)
     if rc != 0:
       return "Failed to %s nuoagent with command %s: %s" % (action, command, stderr)
     
@@ -57,7 +58,7 @@ class Host:
   @property
   def amazon_data(self):
     metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
-    (return_code, null, stderr) = self.ssh_execute(metadata_cmd)
+    (return_code, null, stderr) = self.execute_command(metadata_cmd)
     if return_code != 0:
       raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
     amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
@@ -69,13 +70,13 @@ class Host:
         f = tempfile.NamedTemporaryFile()
         f.write(nuodblicense)
         f.seek(0)
-        self.scp(f.name, "/tmp/license.file")
+        self.copy(f.name, "/tmp/license.file")
         f.close()
         for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
-            if self.ssh_execute(command)[0] != 0:
+            if self.execute_command(command)[0] != 0:
                 sys.exit("Failed ssh execute on command " + command)
                 
-  def attach_volume(self, size, mount_point):
+  def attach_volume(self, size, mount_point, snapshot = None):
         if not self.exists:
             return("Node " + self.name + " doesn't exist")
         device = ""
@@ -83,12 +84,13 @@ class Host:
         for letter in list(string.ascii_lowercase):
             if len(device) == 0:
                 command = "ls /dev | grep sd" + letter
-                if self.ssh_execute(command)[0] > 0:
+                if self.execute_command(command)[0] > 0:
                     device = "/".join(["", "dev", "sd" + letter])
                     print "Found " + device
         if len(device) == 0:
-            sys.exit("Could not find a suitable device for mounting")
-        volume = self.ec2Connection.create_volume(size, self.region)
+            return(False, "Could not find a suitable device for mounting")
+        volume = self.ec2Connection.create_volume(size, self.zone, snapshot = snapshot)
+        print volume.__dict__
         while volume.status != "available":
             volume.update()
             time.sleep(1)
@@ -96,17 +98,18 @@ class Host:
         while volume.attachment_state() != "attached":
             volume.update()
             time.sleep(1)
-        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mkfs", "-t ext4", device]), " ".join(["sudo", "mount", device, mount_point])]:
-            print command
-            self.ssh_execute(command)
-        return self.ssh_execute("mount | grep " + mount_point)[0]
+        if snapshot == None:
+          self.execute_command(" ".join(["sudo", "mkfs", "-t ext4", device]))
+        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
+            self.execute_command(command)
+        return self.execute_command("mount | grep " + mount_point)[0]
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
-        if self.ssh_execute(command)[0] != 0:
+        if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
             
-  def create(self, ami, instance_type, getPublicAddress=False, security_groups=None, security_group_ids=None, subnet=None, userdata = None):
+  def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None):
         if not self.exists:
             if userdata != None:
               self.userdata = userdata
@@ -117,6 +120,7 @@ class Host:
             for instance in reservation.instances:
                 self.instance = instance
                 self.update_data()
+                self.zone = instance._placement
                 instance.add_tag("Name", self.name)
             return self
         else:
@@ -154,14 +158,14 @@ class Host:
       raise Error("Key length of zero! Should not be here")
     cmd = metadata_cmd + key
     if key[-1] != "/":
-      data = self.ssh_execute(cmd)[1]
+      data = self.execute_command(cmd)[1]
       data_array = data.split("\r\n")
       if len(data_array) > 1:
         return data_array
       else:
         return data
     else:
-      subkeys = self.ssh_execute(cmd)[1].split("\r\n")
+      subkeys = self.execute_command(cmd)[1].split("\r\n")
       dataset = {}
       for subkey in subkeys:
         if len(subkey) > 0:
@@ -174,26 +178,32 @@ class Host:
     
   def get_directory_target(self, dir):
     #resolves symlinks to find the actual directory
-    rc, stdout, stderr = self.ssh_execute("sudo readlink -f " + dir)
+    rc, stdout, stderr = self.execute_command("sudo readlink -f " + dir)
     if rc != 0:
       raise Error("Could not find directory %s: %s" %(dir, stderr))
     return stdout.rstrip()
     
   def __get_ssh_connection(self):
-        try:
-            host = socket.gethostbyname(self.name)
-        except:
-            host = self.ext_ip
-        self.ssh_connection = SSHClient()
-        self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
-        # self.ssh_connection.load_system_host_keys()
-        if self.ssh_keyfile != None:
-          self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
-        else:
-          self.ssh_connection.connect(host, username=self.ssh_user)
+    try:
+      host = socket.gethostbyname(self.name)
+    except:
+      host = self.ext_ip
+    self.ssh_connection = SSHClient()
+    self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
+    # self.ssh_connection.load_system_host_keys()
+    if self.ssh_keyfile != None:
+      try:
+        self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
+      except Error, e:
+        print "Unable to SSH to %s with username %s and key %s: %s" % (host, self.ssh_user, self.ssh_keyfile, e)
+    else:
+      try:
+        self.ssh_connection.connect(host, username=self.ssh_user)
+      except Error, e:
+        print "Unable to SSH to %s with username %s: %s" % (host, self.ssh_user, e)
  
   def health(self):
-    return self.ssh_execute("sudo service nuoagent status")[0]
+    return self.execute_command("sudo service nuoagent status")[0]
       
   def is_port_available(self, port, ip = None):
     if ip == None:
@@ -210,7 +220,7 @@ class Host:
       return False
   
   def path_exists(self, path, test = "d"):
-    rc, stdout, stderr = self.ssh_execute("test -%s %s" % (test, path))
+    rc, stdout, stderr = self.execute_command("test -%s %s" % (test, path))
     if rc == 0:
       return True
     else:
@@ -224,9 +234,9 @@ class Host:
         if enableAutomationBootstrap != self.enableAutomationBootstrap:
             self.enableAutomationBootstrap = enableAutomationBootstrap
         self.update_data()
-        self.scp(local_file="./templates/yum/nuodb.repo", remote_file="/tmp/nuodb.repo")
+        self.copy(local_file="./templates/yum/nuodb.repo", remote_file="/tmp/nuodb.repo")
         for command in [ 'sudo hostname ' + self.name, 'sudo mv /tmp/nuodb.repo /etc/yum.repos.d/', 'sudo yum -y install nuodb']:
-            if self.ssh_execute(command)[0] != 0:
+            if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         properties = dict(
             advertiseAlt=str(self.advertiseAlt).lower(),
@@ -250,20 +260,20 @@ class Host:
             f.write(str(output))
             templateContentFile.close()
             f.seek(0)
-            self.scp(f.name, "/tmp/" + templateFile)
+            self.copy(f.name, "/tmp/" + templateFile)
             f.close()
             command = "sudo mv /tmp/" + templateFile + " /opt/nuodb/etc/" + templateFile
-            if self.ssh_execute(command)[0] != 0:
+            if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
         return "OK"      
 
-  def scp(self, local_file, remote_file):    
+  def copy(self, local_file, remote_file):    
         if not hasattr(self, 'ssh_connection'):
             self.__get_ssh_connection()
         sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
         sftp.put(local_file, remote_file)
 
-  def ssh_execute(self, command, nbytes = "99999"):
+  def execute_command(self, command, nbytes = "99999"):
     if not hasattr(self, 'ssh_connection'):
       self.__get_ssh_connection()
     channel = self.ssh_connection.get_transport().open_session()
@@ -275,10 +285,10 @@ class Host:
     return (exit_code, stdout, stderr)
       
   def status(self):
-    if self.exists:
+    try:
       self.update_data()
       return self.instance.state
-    else:
+    except:
       return "Host does not exist"
           
   def terminate(self):
@@ -308,14 +318,14 @@ class Host:
   @property
   def volume_mounts(self):
     cmd = "mount"
-    (r, mount_output, stderr) = self.ssh_execute(cmd)
+    (r, mount_output, stderr) = self.execute_command(cmd)
     if r != 0:
       raise Error("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
     mount_lines = mount_output.split("\n")
     mounts = {}
     infra_devices = {}
     aliases = {}
-    device_alias_list = self.ssh_execute("find /dev -maxdepth 1 -type l -exec ls -lah {} \;")[1].split("\r\n")
+    device_alias_list = self.execute_command("find /dev -maxdepth 1 -type l -exec ls -lah {} \;")[1].split("\r\n")
     for device_alias_line in device_alias_list:
       device_alias_fields = device_alias_line.split(" ")
       if len(device_alias_fields) > 1:
@@ -345,7 +355,7 @@ class Host:
   
   def webconsole_action(self, action):
     command = "sudo service nuowebconsole " + action
-    (rc, stdout, stderr) = self.ssh_execute(command)
+    (rc, stdout, stderr) = self.execute_command(command)
     if rc != 0:
       return "Failed to %s nuowebconsole with command %s: %s" % (action, command, stderr)
         

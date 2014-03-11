@@ -5,7 +5,7 @@ Created on Jan 28, 2014
 '''
 
 import boto.route53
-import nuodbaws
+import nuodbTools.aws
 import inspect, json, os, random, string, sys, time
 
 class Cluster:
@@ -102,7 +102,7 @@ class Cluster:
       stub[host]['ami'] = ami
       stub[host]['security_group_ids'] = security_group_ids
       stub[host]['subnet'] = subnets[len(stub) % len(subnets)]
-      stub[host]['obj'] = nuodbaws.Host(host, ec2Connection=self.zones[zone].connection, 
+      stub[host]['obj'] = nuodbTools.aws.Host(host, ec2Connection=self.zones[zone].connection, 
                                              Route53Connection=self.route53, dns_domain=self.dns_domain, 
                                              domain = self.domain_name, domainPassword = self.domain_password, 
                                              advertiseAlt = True, region = zone,
@@ -154,7 +154,7 @@ class Cluster:
       return obj
              
     def connect_zone(self, zone):
-      self.zones[zone] = nuodbaws.NuoDBzone(zone)
+      self.zones[zone] = nuodbTools.aws.Zone(zone)
       self.zones[zone].connect(aws_access_key=self.aws_access_key, aws_secret=self.aws_secret)
       if "customers" not in self.db:
         self.db['customers'] = {}
@@ -279,7 +279,7 @@ class Cluster:
           hostname = line[0]
           ip = line[1]
           command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
-          (rc, stdout, stderr) = host.ssh_execute(command)
+          (rc, stdout, stderr) = host.execute_command(command)
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
         host.agent_action(action = "restart")

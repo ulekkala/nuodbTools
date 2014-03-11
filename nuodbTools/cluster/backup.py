@@ -5,8 +5,9 @@ Created on Feb 7, 2014
 '''
 # requests module available at http://docs.python-requests.org/en/latest/
 import boto.ec2
-import nuodbaws
-import nuodbcluster
+import nuodbTools.aws
+import nuodbTools.cluster
+import nuodbTools.physical
 import inspect, json, random, time
 
 class Backup():
@@ -22,18 +23,16 @@ class Backup():
       setattr(self, i, values[i])
       
     if backup_type == "tarball" and tarball_destination == None:
-      raise Error("Tarball backup must have a destination")
+      raise Error("Tarball nuodb_backup must have a destination")
     if not hasattr(self, 'domainConnection') or self.domainConnection == None:
-      self.domainConnection = nuodbcluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
-    if self.ec2Connection == None and aws_access_key != None:
-      if aws_region == None:
-        raise Error("aws_region parameter must be defined for AWS")
+      self.domainConnection = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
+    if self.ec2Connection == None:
+      if aws_region == None or aws_access_key == None or aws_secret == None:
+        raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
-    else:
-      self.ec2Connection = None
     if database not in self.domainConnection.get_databases():
       raise Error("Can not find database %s in domain provided")
-    self.db = nuodbcluster.Database(name=self.database, domain = self.domainConnection)
+    self.db = nuodbTools.cluster.Database(name=self.database, domain = self.domainConnection)
     self.backup()
   
   def backup(self):
@@ -77,8 +76,10 @@ class Backup():
     uid = mysm['uid']
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
-
-    self.backuphost = nuodbaws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    if self.ec2Connection != None:
+      self.backuphost = nuodbTools.aws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    else:
+      self.backuphost = nuodbTools.physical.Host(name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     print "Figure out what volume(s) to back up..."
     process_detail = self.domainConnection.rest_req(path="/".join(["processes",uid,"query"]))
     archive = {"dir": process_detail['configuration']['configuration']['archive'], "type": "archive"}
@@ -112,20 +113,22 @@ class Backup():
     
     # We have 2 kinds of backups, online and offline.
     # Online can be done when the mounts are the same and the mount supports file system snapshotting
+    notification = "Nada"
     if archive['mount'] == journal['mount']:
-      print "Common backup device is %s" % archive['mount']
+      print "Common nuodb_backup device is %s" % archive['mount']
       # AWS EBS supports snapshotting
       if "ebs_volume" in archive['volume'] and self.backup_type in ["ebs", "auto", None]:
         # This is an amazon EBS volume
         name = self.__backup_ebs(archive['volume']['ebs_volume'], self.backuphost)
-        notification = "Created an EBS backup of %s with snapshot id %s" % (self.database, name[1])
+        notification = "Created an EBS nuodb_backup of %s with snapshot id %s" % (self.database, name[1])
       # So does a zfs volume
       elif archive['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
-        notification = self.__backup_zfs(
-                                          directory = archive['dir'], device = archive['volume']['dev'], 
-                                          host = self.backuphost
-                                          ) + "\n"
-      # Anything else we need offline backup
+        backup = self.__backup_zfs(directory = archive['dir'], device = archive['volume']['dev'], host = self.backuphost)
+        if backup[0]:
+          notification =  backup[1]+ "\n"
+        else:
+          Error(backup[1])
+      # Anything else we need offline nuodb_backup
       else:
         notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = None)
     else:
@@ -134,10 +137,10 @@ class Backup():
     print "Exiting..."
   
   def __offline_backup(self, host = None, storage_manager = None, archive = None, journal = None):
-    # If we are here we are going to take down the SM, take a backup, and start the process
-    print "No online backup method available"
+    # If we are here we are going to take down the SM, take a nuodb_backup, and start the process
+    print "No online nuodb_backup method available"
     if len(self.db.get_processes(type="SM")) < 2:
-      print "Not enough storage managers to take backup. Need 2, have %s " % len(self.db.get_processes(type="SM")) 
+      print "Not enough storage managers to take nuodb_backup. Need 2, have %s " % len(self.db.get_processes(type="SM")) 
       print "Please start another and wait for it to synchronize"
       exit(1)
     else:
@@ -148,17 +151,17 @@ class Backup():
     notification = ""
     timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())
     for dir in [archive, journal]:
-      if dir != None:
+      if dir != None and "volume" in dir:
         if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
           # This is an amazon EBS volume
           name = self.__backup_ebs(dir['volume']['ebs_volume'], host, backup_type = dir['type'], timestamp = timestamp)
-          notification += "Created an EBS backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name) + "\n"
-        elif dir['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
-          notification += self.__backup_zfs(
-                                            directory = dir['dir'], device = dir['volume']['dev'], 
-                                            host = host, backup_type = dir['type'], 
-                                            timestamp = timestamp
-                                            ) + "\n"
+          notification += "Created an EBS nuodb_backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name) + "\n"
+        elif "type" in dir['volume'] and dir['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
+          backup = self.__backup_zfs(directory = dir['dir'], device = dir['volume']['dev'], host = host, backup_type = dir['type'], timestamp = timestamp)
+          if backup[0]:
+            notification +=  backup[1]+ "\n"
+          else:
+            Error(backup[1])
         else:
           notification += self.__backup_tarball(
                                                source = dir['dir'], destination = self.tarball_destination,
@@ -166,7 +169,11 @@ class Backup():
                                                timestamp = timestamp
                                                ) + "\n"
     print "Start SM..."
-    self.start_process(type = "SM", archive_dir = archive['dir'])
+    if journal == None or journal['dir'] == None:
+      journal_dir = None
+    else:
+      journal_dir = journal['dir']
+    self.start_process(type = "SM", archive_dir = archive['dir'], journal_dir = journal_dir)
     return notification
   
   def __backup_ebs(self, vol_id, host, backup_type = "", timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())):
@@ -187,11 +194,11 @@ class Backup():
       dbname = self.database
     description = "NuoDB Backup of %s from %s on %s" % (dbname, host.hostname, timestamp)
     command = "sudo zfs snapshot %s@\"%s\"" % (device, description)
-    rc, stdout, stderr = host.ssh_execute(command)[0]
+    rc, stdout, stderr = host.execute_command(command)
     if  rc != 0:
       returnmessage = "Command %s failed to execute: %s" % (command, stderr)
       return (False, returnmessage)
-    return (True, host.ssh_execute("sudo zfs list -t snapshot")[1])
+    return (True, host.execute_command("sudo zfs list -t snapshot")[1])
     
   def __backup_tarball(self, source, destination, host, backup_type = "", timestamp = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime())):
     if backup_type != "":
@@ -211,15 +218,14 @@ class Backup():
                 echo "Space check OK. Source: $src Dest: $dest";
               fi
               """ % (source, destination)
-    print host.ssh_execute(command)
-    return "Tarball backup is yet to be implemented"
+    print host.execute_command(command)
+    return "Tarball nuodb_backup is yet to be implemented"
     
   def dump_data(self):
     return self.__dict__
   
-  def start_process(self, type="SM", archive_dir= None):
-    pass
-    #self.db.start_process(type = "host", host = self.backuphost.name, archive = archive_dir, journal, options)
+  def start_process(self, type="SM", archive_dir= None, journal_dir = None):
+    self.db.start_process(type = type, host = self.backuphost.name, archive = archive_dir, journal = journal_dir)
     
   def stop_process(self, process_id, force=False):
     process_exists = False
@@ -227,10 +233,13 @@ class Backup():
     for process in self.db.get_processes():
       if process['uid'] == process_id:
         process_exists = True
-        if process['transactional']:
-          process_type = "TE"
+        if "transactional" in process:
+          if process['transactional']:
+            process_type = "TE"
+          else:
+            process_type = "SM"
         else:
-          process_type = "SM"  
+          process_type = process['type']
     if process_exists:
       if len(self.db.get_processes(type=process_type)) <= 1 and not force:
         raise Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.database))
