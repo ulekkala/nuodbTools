@@ -26,12 +26,10 @@ class Backup():
       raise Error("Tarball nuodb_backup must have a destination")
     if not hasattr(self, 'domainConnection') or self.domainConnection == None:
       self.domainConnection = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
-    if self.ec2Connection == None and aws_access_key != None:
-      if aws_region == None:
-        raise Error("aws_region parameter must be defined for AWS")
+    if self.ec2Connection == None:
+      if aws_region == None or aws_access_key == None or aws_secret == None:
+        raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
-    else:
-      self.ec2Connection = None
     if database not in self.domainConnection.get_databases():
       raise Error("Can not find database %s in domain provided")
     self.db = nuodbTools.cluster.Database(name=self.database, domain = self.domainConnection)
