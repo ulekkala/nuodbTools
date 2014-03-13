@@ -1,7 +1,7 @@
 
 [NuoDB](http://www.nuodb.com) Tools
 ===========
-## Quckstart
+## Quickstart
 * If this is your first database and you want to get up and running you have a few options (in order of complexity):
   * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
   * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef#vagrant)
