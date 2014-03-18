@@ -1,4 +1,3 @@
-
 [NuoDB](http://www.nuodb.com) Tools
 ===========
 ## Quickstart
@@ -9,7 +8,7 @@
 * Once you have a running database you can take advantage of the tools provided in this package
 
 ## What are the tools provided?
-* `nuodb_backup.py` Take backups of a running NuoDB database 
+* `nuodb_backup.py` Take backups of a running NuoDB database (under development)
 * `nuodb_cluster.py` Allows you to create a fully functional multi-node and multi-region sandbox database in AWS
 * `nuodb_load.py` Simple load generator. For testing only. For a better benchmarking suite go [here](http://tbd)
 * `nuodb_tarball_installer.py` If you want to install multiple parallel instances of NuoDB on a single host (for example in build environments)
