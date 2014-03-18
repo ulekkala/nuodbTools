@@ -45,7 +45,7 @@ class Host:
     command = "sudo service nuoagent " + action
     (rc, stdout, stderr) = self.execute_command(command)
     if rc != 0:
-      return "Failed to %s nuoagent with command %s: %s" % (action, command, stderr)
+      raise HostError("Failed to %s nuoagent with command %s: %s" % (action, command, stderr))
     
   def agent_running(self, ip = None):
     while ip == None:
@@ -60,7 +60,7 @@ class Host:
     metadata_cmd = "curl http://169.254.169.254/latest/meta-data/"
     (return_code, null, stderr) = self.execute_command(metadata_cmd)
     if return_code != 0:
-      raise Error("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
+      raise HostError("Unable to determine AWS instance data through command %s: %s" % (metadata_cmd, stderr))
     amazon_data = self.__get_amazon_field("/", metadata_cmd = metadata_cmd)
     return amazon_data
   
@@ -74,35 +74,55 @@ class Host:
         f.close()
         for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
             if self.execute_command(command)[0] != 0:
-                sys.exit("Failed ssh execute on command " + command)
+                raise HostError("Failed ssh execute on command " + command)
                 
-  def attach_volume(self, size, mount_point, snapshot = None):
-        if not self.exists:
-            return("Node " + self.name + " doesn't exist")
-        device = ""
-        # find suitable device
-        for letter in list(string.ascii_lowercase):
-            if len(device) == 0:
-                command = "ls /dev | grep sd" + letter
-                if self.execute_command(command)[0] > 0:
-                    device = "/".join(["", "dev", "sd" + letter])
-                    print "Found " + device
+  def attach_volume(self, size, mount_point, snapshot = None, mode= None, user = None, group = None, force = False):
+    if not self.exists:
+        raise HostError("Node does not exist")
+    if mount_point in self.volume_mounts.keys() and force != True:
+      raise HostError("Mount point already has another mount on it.")
+    device = ""
+    # find suitable device
+    for letter in list(string.ascii_lowercase):
         if len(device) == 0:
-            return(False, "Could not find a suitable device for mounting")
-        volume = self.ec2Connection.create_volume(size, self.zone, snapshot = snapshot)
-        print volume.__dict__
-        while volume.status != "available":
-            volume.update()
-            time.sleep(1)
-        self.ec2Connection.attach_volume(volume.id, self.instance.id, device)
-        while volume.attachment_state() != "attached":
-            volume.update()
-            time.sleep(1)
-        if snapshot == None:
-          self.execute_command(" ".join(["sudo", "mkfs", "-t ext4", device]))
-        for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
-            self.execute_command(command)
-        return self.execute_command("mount | grep " + mount_point)[0]
+            command = "ls /dev | grep sd" + letter
+            if self.execute_command(command)[0] > 0:
+                device = "/".join(["", "dev", "sd" + letter])
+    if len(device) == 0:
+        raise HostError("Could not find a suitable device for mounting")
+    volume = self.ec2Connection.create_volume(size, self.zone, snapshot = snapshot)
+    volume.add_tag("Name", ":".join([device, mount_point]))
+    while volume.status != "available":
+        volume.update()
+        time.sleep(1)
+    self.ec2Connection.attach_volume(volume.id, self.instance.id, device)
+    while volume.attachment_state() != "attached":
+        volume.update()
+        time.sleep(1)
+    if snapshot == None:
+     # if self.execute_command(" ".join(["which", "mkfs.xfs"]))[0] != 0:
+     #   self.execute_command(" ".join(["sudo", "yum", "-y install xfsprogs"]))
+      self.execute_command(" ".join(["sudo", "mkfs", "-t ext4", device]))
+    for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
+        r = self.execute_command(command)
+        if r[0] != 0:
+          return (False, r[1], r[2])
+    if mode != None:
+      command = "sudo chmod %s %s" % (mode, mount_point)
+      r = self.execute_command(command)
+      if r[0] != 0:
+        return (False, r[1], r[2])
+    if user != None:
+      command = "sudo chown %s %s" % (user, mount_point)
+      r = self.execute_command(command)
+      if r[0] != 0:
+        return (False, r[1], r[2])
+    if group != None:
+      command = "sudo chgrp %s %s" % (group, mount_point)
+      r = self.execute_command(command)
+      if r[0] != 0:
+        return (False, r[1], r[2])
+    return self.execute_command("mount | grep " + mount_point)
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
@@ -155,7 +175,7 @@ class Host:
     
   def __get_amazon_field(self, key, metadata_cmd):
     if len(key) == 0:
-      raise Error("Key length of zero! Should not be here")
+      raise HostError("Key length of zero! Should not be here")
     cmd = metadata_cmd + key
     if key[-1] != "/":
       data = self.execute_command(cmd)[1]
@@ -180,7 +200,7 @@ class Host:
     #resolves symlinks to find the actual directory
     rc, stdout, stderr = self.execute_command("sudo readlink -f " + dir)
     if rc != 0:
-      raise Error("Could not find directory %s: %s" %(dir, stderr))
+      raise HostError("Could not find directory %s: %s" %(dir, stderr))
     return stdout.rstrip()
     
   def __get_ssh_connection(self):
@@ -194,12 +214,12 @@ class Host:
     if self.ssh_keyfile != None:
       try:
         self.ssh_connection.connect(host, username=self.ssh_user, key_filename = self.ssh_keyfile)
-      except Error, e:
+      except HostError, e:
         print "Unable to SSH to %s with username %s and key %s: %s" % (host, self.ssh_user, self.ssh_keyfile, e)
     else:
       try:
         self.ssh_connection.connect(host, username=self.ssh_user)
-      except Error, e:
+      except HostError, e:
         print "Unable to SSH to %s with username %s: %s" % (host, self.ssh_user, e)
  
   def health(self):
@@ -320,7 +340,7 @@ class Host:
     cmd = "mount"
     (r, mount_output, stderr) = self.execute_command(cmd)
     if r != 0:
-      raise Error("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
+      raise HostError("Unable to determine file volume mount info through command %s: %s" % (cmd, stderr))
     mount_lines = mount_output.split("\n")
     mounts = {}
     infra_devices = {}
@@ -359,8 +379,11 @@ class Host:
     if rc != 0:
       return "Failed to %s nuowebconsole with command %s: %s" % (action, command, stderr)
         
-class Error(Exception):
-  pass        
+class HostError(Exception):
+  def __init__(self, value):
+    self.value = value
+  def __str__(self):
+    return self.value        
 
 class TemporaryAddPolicy:
     def missing_host_key(self, client, hostname, key):

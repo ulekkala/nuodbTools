@@ -17,6 +17,14 @@ class sql():
       
     def close(self):
       self.connection.close()
+    
+    def commit(self):
+      cursor = self.execution.cursor()
+      try:
+        cursor.execute("COMMIT")
+        return True
+      except:
+        return False
       
     def execute(self, command, autocommit = False, associative = False):
       cursor = self.connection.cursor()

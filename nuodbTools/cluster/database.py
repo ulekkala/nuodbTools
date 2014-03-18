@@ -1,4 +1,7 @@
+import collections
+import json
 import nuodbTools.cluster
+
 
 class Database():
     def __init__(self, name, domain = None):
@@ -7,6 +10,24 @@ class Database():
         self.name = name
         self.domain = domain
         self.update()
+    
+    def create(self, template = "UnmanagedTemplate", username = None, password = None, variables = {}):
+      if self.exists:
+        raise Error("Database %s already exists" % self.name) 
+      if username == None or password == None:
+        raise Error("Username and password must be defined for a new database")
+      else:
+        data = {"name": self.name, "username": username, "password": password, "template": template, "variables": variables}
+        self.domain_obj = self.domain.rest_req(action = "POST", path="databases/", data = data)
+        self.exists = True
+        return self
+    
+    @property
+    def exists(self):
+      if len(self.get_processes()) == 0:
+        return False
+      else:
+        return True
         
     def get_hosts(self):
       self.update()
@@ -35,33 +56,33 @@ class Database():
       data = self.domain.rest_req("GET", "/".join(["databases", self.name]))
       return data["processes"]
       
-    def start_process(self, type, host = None, archive = None, journal = None, initialize = False, user = None, password = None):
+    def start_process(self, processtype = "SM", host_id = None, archive = None, journal = None, initialize = False, user = None, password = None):
       # curl -X POST -H "Accept: application/json" -H "Content-type: application/json" -u domain:bird -d '{ "type": "TE", "dbname": "foo", "options": {"--dba-user": "dba", "--dba-password": "goalie" } }' http://localhost:8888/api/processes
       # curl -X POST -H "Accept: application/json" -H "Content-type: application/json" -u domain:bird -d '{ "type": "SM", "host": "194e1a9e-ea6d-4874-a030-98c1522c64b3", "dbname": "foo", "initialize": true, "overwrite": false, "archive": "/tmp", "options": {"--journal": "enable", "--journal-dir": "/journal"} }' http://localhost:8888/api/processes
-      if type == "SM":
-        data = {
-                "type": "SM",
-                "host": host,
-                "dbname": self.name,
-                "archive": archive,
-                "initialize": str(initialize).lower()
-                }
+      if processtype == "SM":
+        data = collections.OrderedDict()
+        data["type"] = "SM"
+        data['host'] = host_id
+        data["dbname"] = self.name
+        data["archive"] = archive
+        data["initialize"] = initialize
         if journal != None:
-          data['options'] = {"--journal-enable": "true", "--journal-dir": journal}
-      elif type == "TE":
+          data['options'] = collections.OrderedDict()
+          data['options']["--journal"] = "enable"
+          data['options']["--journal-dir"] = journal
+      elif processtype == "TE":
         if user == None or password == None:
           Error("You must populate 'user' and 'password' fields when starting TEs")
-        data = {
-                "type": "TE",
-                "host": host,
-                "dbname": self.name,
-                "options": {"---dba-user": user, "--dba-password": password}
-                }
+        data = collections.OrderedDict()
+        data["type"] = "TE"
+        data["host"] = host_id
+        data["dbname"] = self.name
+        data["options"] = collections.OrderedDict()
+        data["options"]["--dba-user"] = user
+        data["options"]["--dba-password"] = password
       else:
-        Error("Invalid value %s for type" % type)
-      print "data"
-      print data
-      self.domain.rest_req("POST", "/databases", data=data)
+        raise Error("Invalid value %s for processtype" % processtype)
+      self.domain.rest_req("POST", "/processes", data=data)
       
     def stop_process(self, process_id):
       for process in self.processes:
@@ -71,9 +92,13 @@ class Database():
       raise Error("Could not find process %s to stop it" % process_id)
         
     def update(self):
-      data = self.domain.rest_req("GET", "databases/%s" % self.name)
-      for key in data:
-        setattr(self, key, data[key])
+      if self.name in self.domain.get_databases():
+        self.exists = True
+        data = self.domain.rest_req("GET", "databases/%s" % self.name)
+        for key in data:
+          setattr(self, key, data[key])
+      else:
+        self.exists = False
         
 class Error(Exception):
   pass

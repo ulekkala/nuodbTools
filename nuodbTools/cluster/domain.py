@@ -1,7 +1,7 @@
 # requests module available at http://docs.python-requests.org/en/latest/
 
 
-import inspect, json, re, requests, socket
+import collections, inspect, json, re, requests, socket
 
 class Domain():
     '''
@@ -46,6 +46,12 @@ class Domain():
         databases.append(db['name'])
       return sorted(databases)
     
+    def get_host_id(self, hostname):
+      for host in self.get_hosts():
+        if hostname == host['hostname']:
+          return host['id']
+      return None
+      
     def get_hosts(self):
       return self.rest_req(action = "GET", path = "hosts")
       
@@ -64,9 +70,8 @@ class Domain():
         path = path[1:len(path)]
       url = "/".join([self.rest_url, path])
       headers = {"Accept": "application/json", "Content-type": "application/json"}
-      if type(data) is dict:
+      if isinstance(data, dict) or isinstance(data, collections.OrderedDict):
         data = json.dumps(data)
-      print data
       if action == "POST":
         req = requests.post(url, data=data, auth=(self.rest_username, self.rest_password), headers=headers)
       elif action == "PUT":

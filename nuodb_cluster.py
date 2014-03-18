@@ -68,11 +68,15 @@ def get_instance_type():
   url = "https://raw2.github.com/garnaat/missingcloud/master/aws.json"
   obj = json.loads(urllib2.urlopen(url).read())
   instance_types = sorted(obj['services']['Elastic Compute Cloud']['instance_types'].keys())
+  filtered_instance_types = []
+  for t in instance_types:
+    if t[0] == "m" or t[0] == "t":
+      filtered_instance_types.append(type)
   suggested = None
-  for idx, itype in enumerate(instance_types):
+  for idx, itype in enumerate(filtered_instance_types):
     if itype == "m1.xlarge":
       suggested = idx
-  result = choose_from_list(instance_types, suggested)
+  result = choose_from_list(filtered_instance_types, suggested)
   return instance_types[result]
   
 def get_zone_info(c):
