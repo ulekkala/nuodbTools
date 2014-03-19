@@ -122,7 +122,12 @@ class Host:
       r = self.execute_command(command)
       if r[0] != 0:
         return (False, r[1], r[2])
-    return self.execute_command("mount | grep " + mount_point)
+    command = "mount | grep " + mount_point
+    r = self.execute_command(command)
+    if r[0] != 0:
+      return (False, r[1], r[2])
+    else:
+      return (True, r[1], r[2])
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
