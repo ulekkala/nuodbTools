@@ -12,6 +12,8 @@ import nuodbTools.physical
 import inspect, json, random, time
 import os.path
 import re
+import tempfile
+import uuid
 import zlib
 
 class Backup():
@@ -30,7 +32,9 @@ class Backup():
       raise Error("Tarball nuodb_backup must have a destination")
     if not hasattr(self, 'domainConnection') or self.domainConnection == None:
       self.domainConnection = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
-    if self.ec2Connection == None:
+    if backup_type == "tarball" or tarball_destination != None:
+      self.tarball_destination = tarball_destination
+    elif self.ec2Connection == None:
       if aws_region == None or aws_access_key == None or aws_secret == None:
         raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
@@ -119,13 +123,13 @@ class Backup():
     notification = "Nada"
     if archive['mount'] == journal['mount']:
       print "Common nuodb_backup device is %s" % archive['mount']
-      vol = archive
-      vol['journal_dir'] = journal['dir']
-      vol['backup_type'] = "full"
+
       # AWS EBS supports snapshotting
       if "ebs_volume" in archive['volume'] and self.backup_type in ["ebs", "auto", None]:
         # This is an amazon EBS volume
-        
+        vol = archive
+        vol['journal_dir'] = journal['dir']
+        vol['backup_type'] = "full"
         name = self.__backup_ebs(
                                  vol = vol, 
                                  host = self.backuphost, 
@@ -141,7 +145,7 @@ class Backup():
           Error(backup[1])
       # Anything else we need offline nuodb_backup
       else:
-        notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = None)
+        notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = journal)
     else:
       notification = self.__offline_backup(host = self.backuphost, storage_manager = mysm, archive = archive, journal = journal)
     print notification
@@ -162,25 +166,31 @@ class Backup():
     notification = ""
     timestamp = time.time()
     archive['backup_type'] = "archive"
-    journal['backup_type'] = "journal"
-    for dir in [archive, journal]:
-      if dir != None and "volume" in dir:
-        if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
-          # This is an amazon EBS volume
-          name = self.__backup_ebs(dir, host, timestamp = timestamp, comment = comment)
-          notification += "Created an EBS nuodb_backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name[1]) + "\n"
-        elif "type" in dir['volume'] and dir['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
-          backup = self.__backup_zfs(directory = dir['dir'], device = dir['volume']['dev'], host = host, backup_type = dir['type'], timestamp = timestamp)
-          if backup[0]:
-            notification +=  backup[1]+ "\n"
+    if journal != None:
+      journal['backup_type'] = "journal"
+    
+    if self.tarball_destination:
+      self.__backup_tarball(
+                             archive = archive, journal = journal,
+                             destination = self.tarball_destination,
+                             host = host,
+                             timestamp = timestamp
+                             )
+    else:
+      for dir in [archive, journal]:
+        if dir != None and "volume" in dir:
+          if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
+            # This is an amazon EBS volume
+            name = self.__backup_ebs(dir, host, timestamp = timestamp, comment = comment)
+            notification += "Created an EBS nuodb_backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name[1]) + "\n"
+          elif "type" in dir['volume'] and dir['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
+            backup = self.__backup_zfs(directory = dir['dir'], device = dir['volume']['dev'], host = host, backup_type = dir['type'], timestamp = timestamp)
+            if backup[0]:
+              notification +=  backup[1]+ "\n"
+            else:
+              raise Error(backup[1])
           else:
-            Error(backup[1])
-        else:
-          notification += self.__backup_tarball(
-                                               source = dir['dir'], destination = self.tarball_destination,
-                                               host = host, backup_type = dir['type'],
-                                               timestamp = timestamp
-                                               ) + "\n"
+            raise Error("Unknown backup type")
     print "Start SM..."
     if journal == None or journal['dir'] == None:
       journal_dir = None
@@ -201,10 +211,7 @@ class Backup():
       else:
         metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir']}
     else:
-      if "journal_dir" in vol:
-        metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir'], "jd": vol['journal_dir']}
-      else:
-        metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir'], "jd": vol['journal_dir']}
+      metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir'], "jd": vol['journal_dir']}
     name = "%s@%s" % (dbname, time_formatted)
     
     if comment == None:
@@ -236,16 +243,27 @@ class Backup():
       return (False, returnmessage)
     return (True, host.execute_command("sudo zfs list -t snapshot")[1])
     
-  def __backup_tarball(self, source, destination, host, backup_type = "", timestamp = time.time()):
-    time_formatted = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(timestamp))
-    if backup_type != "":
-      dbname = ":".join([backup_type, self.database])
+  def __backup_tarball(self, archive, journal, destination, host, timestamp = time.time(), comment = None):
+    def sanitize(data):
+      if data == None:
+        return data
+      else:
+        return data.replace("_", "-").replace(" ", "_")
+    if comment != None:
+      filename = "NuoDB_backup_%s_%s.tgz" % (sanitize(self.database), sanitize(comment))
     else:
-      dbname = self.database
-    filename = "NuoDB_backup_%s_%s_%s.tgz" % (dbname, host.hostname, time_formatted.replace(" ", "_"))
+      filename = "NuoDB_backup_%s_%s.tgz" % (sanitize(self.database), str(int(timestamp)))
+    metadata = {"t": timestamp, "db": self.database, "b": "full", "m": None, "ad": archive['dir'], "jd": journal['dir']}
+    metadata_file = tempfile.NamedTemporaryFile(suffix=".metadata", delete=False)
+    metadata_file.write(json.dumps(metadata))
+    metadata_file.close()
+    
+    # Find out if there is enough space for the tarball
     command = """
-              src=`sudo du -s %s | awk '{print $1}'`;
+              arch=`sudo du -s %s | awk '{print $1}'`;
+              jrnl=`sudo du -s %s | awk '{print $1}'`;
               dest=`sudo df %s | awk '{print $4}' | tail -n 1`;
+              src=$((arch+jrnl))
               if [ $src -gt $dest ];
               then
                 echo "Insufficient space on destination drive. Have $dest available, need $src";
@@ -253,9 +271,15 @@ class Backup():
               else 
                 echo "Space check OK. Source: $src Dest: $dest";
               fi
-              """ % (source, destination)
+              """ % (archive['dir'], journal['dir'], destination)
+    r = host.execute_command(command)
+    if r[0] != 0:
+      raise Error(r[2])
+    host.copy(metadata_file.name, "/".join([destination, os.path.basename(metadata_file.name)]))
+    command = "cd %s; sudo tar -czf %s %s %s %s" % (destination, "/".join([self.tarball_destination, filename]), os.path.basename(metadata_file.name), archive['dir'], journal['dir'])
+    print command
     print host.execute_command(command)
-    return "Tarball nuodb_backup is yet to be implemented"
+    return (False, "", "Tarball nuodb_backup is yet to be implemented")
     
   def dump_data(self):
     return self.__dict__
@@ -287,9 +311,27 @@ class Backup():
             print e
       for t in sorted(backups.keys(), cmp=reverse_numeric):
         ret.append([backups[t]["c"], backups[t]["s"], t])
+    if self.tarball_destination != None:
+      self.host_obj = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+      command = "ls -lrn %s/NuoDB_backup* | awk '{print $9}'" % self.tarball_destination
+      r = self.host_obj.execute_command(command)
+      if r[0] != 0:
+        raise Error("Can't find backups in %s: %s" % self.tarball_destination, r[2]) 
+      else:
+        files = r[1].split("\n")
+        for f in files:
+          if len(f.rstrip()) > 0:
+            parts = f.rstrip().replace(".tgz", "").replace("-", " ").split("_")
+            desc = parts[-1]
+            if parts[2] == self.database:
+              try:
+                desc = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(int(desc)))
+              except:
+                pass
+              ret.append((desc, f.rstrip()))
     return ret
   
-  def restore(self, db_user = None, db_password = None, snapshots = []):
+  def restore_ebs(self, db_user = None, db_password = None, snapshots = []):
     hosts = self.domainConnection.get_hosts()
     journal_dir = None
     archive_dir = None
@@ -302,7 +344,7 @@ class Backup():
         if self.ec2Connection != None:
           self.restorehost = nuodbTools.aws.Host(ec2Connection = self.ec2Connection, name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
         else:
-          raise Error("Automated non-aws restores are not supported at this time")
+          raise Error("A valid ec2 connection cannot be found.")
           #self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     if not hasattr(self, "restorehost"):
       raise Error("No member of the domain found at %s" % self.host)
@@ -340,8 +382,58 @@ class Backup():
     self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost, user = db_user, password = db_password)
     print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
       
+  def restore_tarball(self, db_user = None, db_password = None, tarball = None):
+    hosts = self.domainConnection.get_hosts()
+    if db_user == None or db_password == None:
+      raise Error("You must specify db_user and db_password for the new database to restore it.")
+    for host in hosts:
+      if host['hostname'] == self.host:
+        self.restorehost_id = host['id']
+        self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    if not hasattr(self, "restorehost"):
+      raise Error("No member of the domain found at %s" % self.host)
+    tempdir = "/".join([self.tarball_destination, "tmp", uuid.uuid4().__str__()])
+    commands = ["mkdir -p %s" % tempdir]
+    commands.append("tar -C %s -xvf %s" % (tempdir, tarball))
+    commands.append("cat %s/*.metadata" % tempdir)
+    print "Extracting %s to %s..." % (tarball, tempdir)
+    for command in commands:
+      r = self.restorehost.execute_command(command)
+      if r[0] != 0:
+        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+    metadata = json.loads(r[1])
+    dbname = "_".join([self.database, str(int(metadata['t']))])
+    self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
+    if self.restoredb.exists:
+      raise Error("Database %s already exists in the domain. Cannot restore an already running database." % dbname)
+    archive_dir = "_".join([metadata['ad'], str(int(metadata['t']))])
+    journal_dir = "_".join([metadata['jd'], str(int(metadata['t']))])
+    # Need to find out what user is running nuodb to make the directories sane.
+    command = "ps aux | grep nuoagent.jar | head -n 1 | awk '{print $1}'"
+    nuo_user = self.restorehost.execute_command(command)[1].rstrip()
+    commands = []
+    print "Moving %s to %s" % ("/".join([tempdir, metadata['ad']]), archive_dir)
+    print "Moving %s to %s" % ("/".join([tempdir, metadata['jd']]), journal_dir)
+    commands.append("if [ -d %s ]; then sudo rm -rf %s; fi;" % (archive_dir, archive_dir))
+    commands.append("mv %s %s" % ("/".join([tempdir, metadata['ad']]), archive_dir))
+    commands.append("sudo chown -R %s %s" % (nuo_user, archive_dir))
+    commands.append("if [ -d %s ]; then rm -rf %s; fi;" % (journal_dir, journal_dir))
+    commands.append("mv %s %s" % ("/".join([tempdir, metadata['jd']]), journal_dir))
+    commands.append("sudo chown -R %s %s" % (nuo_user, journal_dir))
+    for command in commands:
+      r = self.restorehost.execute_command(command)
+      if r[0] != 0:
+        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+    print "Starting SM..."
+    self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = archive_dir, journal_dir = journal_dir)
+    print "Starting TE..."
+    self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost_id, user = db_user, password = db_password)
+    print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
+  
   def start_process(self, database, processtype="SM", host = None, archive_dir= None, journal_dir = None, user = None, password = None):
     if isinstance(host, nuodbTools.aws.Host):
+      host_id = self.domainConnection.get_host_id(host.name)
+    elif isinstance(host, nuodbTools.physical.Host):
       host_id = self.domainConnection.get_host_id(host.name)
     else:
       host_id = host

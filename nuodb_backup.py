@@ -63,7 +63,7 @@ def choose_from_list(params = [], suggested = None):
 
 ## Start work
 
-db = nuodbTools.cluster.Backup(database = args.database, host = args.host,
+bu = nuodbTools.cluster.Backup(database = args.database, host = args.host,
                                      aws_access_key=args.aws_key, aws_secret=args.aws_secret, 
                                      aws_region = args.aws_region, rest_url = args.rest_url, 
                                      rest_username = args.rest_username, rest_password = args.rest_password, 
@@ -72,16 +72,19 @@ db = nuodbTools.cluster.Backup(database = args.database, host = args.host,
                                      )
 if args.action == "backup":
   if args.comment != None and len(args.comment) > 0:
-    db.backup(comment = str(args.comment))
+    bu.backup(comment = str(args.comment))
   else:
-    db.backup()
+    bu.backup()
 elif args.action == "restore":
   options = []
-  for bu in db.backups:
-    options.append(bu[0])
+  for b in bu.backups:
+    options.append(b[0])
   print "Choose a backup of database '%s' to restore:" % args.database
   choice = choose_from_list(params = options)
-  db.restore(db_user = args.db_user, db_password = args.db_pass, snapshots = db.backups[choice][1])
+  if hasattr(bu, "ec2Connection") and bu.ec2Connection != None:
+    bu.restore_ebs(db_user = args.db_user, db_password = args.db_pass, snapshots = bu.backups[choice][1])
+  else:
+    bu.restore_tarball(db_user = args.db_user, db_password = args.db_pass, tarball = bu.backups[choice][1])
   #if "snap-" in args.snapshot:
   #  db.restore([args.snapshot])
 else:
