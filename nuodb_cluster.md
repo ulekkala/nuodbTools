@@ -25,3 +25,4 @@
 ### Execution
 * Run `nuodb_cluster.py`
 * Enter the information you gathered above, following the prompts
+* When the script completes you will have a running cluster in AWS. The script will provide you with URLs for the consoles and brokers so that you may start interacting with it immediately.
