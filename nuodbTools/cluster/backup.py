@@ -38,8 +38,6 @@ class Backup():
       if aws_region == None or aws_access_key == None or aws_secret == None:
         raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
-    if database not in self.domainConnection.get_databases():
-      raise Error("Can not find database %s in domain provided" % database)
     self.db = nuodbTools.cluster.Database(name=self.database, domain = self.domainConnection)
     
   def backup(self, comment = None):
@@ -65,7 +63,8 @@ class Backup():
         return "/"
       else:
         return "/".join(common)
-
+    if self.database not in self.domainConnection.get_databases():
+      raise Error("Can not find database %s in domain provided" % self.database)
     sm_processes = self.db.get_processes(type="SM")
     if self.host != None:
       exists = False
@@ -323,7 +322,7 @@ class Backup():
           if len(f.rstrip()) > 0:
             parts = f.rstrip().replace(".tgz", "").replace("-", " ").split("_")
             desc = parts[-1]
-            if parts[2] == self.database:
+            if parts[2].replace(" ", "_") == self.database:
               try:
                 desc = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(int(desc)))
               except:
@@ -457,7 +456,8 @@ class Backup():
         raise Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.database))
       else:
         print "Stopping %s" % process_id
-        return self.db.stop_process(process_id)
+        self.db.stop_process(process_id)
+        time.sleep(10)
     else:
       raise Error("Process %s does not exist in this database" % process_id)
     

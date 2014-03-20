@@ -91,6 +91,10 @@ class Domain():
           return {}
       else:
         print req.content
+        print "DEBUG: method: %s" % action
+        print "DEBUG: url: %s" % url
+        print "DEBUG: data: %s" % json.dumps(data)
+        print "DEBUG: headers: %s" % json.dumps(headers)
         req.raise_for_status()
     
     def pp_rest_req(self, action="GET", path="", data=None, timeout=10):
