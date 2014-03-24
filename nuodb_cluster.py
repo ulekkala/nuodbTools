@@ -231,10 +231,10 @@ def __main__(action = None):
         params[key]['default'] = static_config[key]
     
     for key in sorted(params.keys()):
-      if len(str(params[key]['default'])) > 30:
-        default = str(params[key]['default'])[0:27] + "..."
-      else:
-        default = str(params[key]['default'])
+      #if len(str(params[key]['default'])) > 30:
+      #  default = str(params[key]['default'])[0:27] + "..."
+      #else:
+      default = str(params[key]['default'])
       val = raw_input("%s [%s] " % (params[key]['prompt'], default))
       if len(val) == 0:
         c[key] = params[key]['default']
