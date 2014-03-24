@@ -12,6 +12,7 @@ import nuodbTools.physical
 import inspect, json, random, time
 import os.path
 import re
+import socket
 import tempfile
 import uuid
 import zlib
@@ -34,7 +35,7 @@ class Backup():
       self.domainConnection = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
     if backup_type == "tarball" or tarball_destination != None:
       self.tarball_destination = tarball_destination
-    elif self.ec2Connection == None:
+    if self.ec2Connection == None and backup_type.lower() == "ebs":
       if aws_region == None or aws_access_key == None or aws_secret == None:
         raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
@@ -167,29 +168,26 @@ class Backup():
     archive['backup_type'] = "archive"
     if journal != None:
       journal['backup_type'] = "journal"
-    
-    if self.tarball_destination:
-      self.__backup_tarball(
-                             archive = archive, journal = journal,
-                             destination = self.tarball_destination,
-                             host = host,
-                             timestamp = timestamp
-                             )
-    else:
-      for dir in [archive, journal]:
-        if dir != None and "volume" in dir:
-          if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
-            # This is an amazon EBS volume
-            name = self.__backup_ebs(dir, host, timestamp = timestamp, comment = comment)
-            notification += "Created an EBS nuodb_backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name[1]) + "\n"
-          elif "type" in dir['volume'] and dir['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
-            backup = self.__backup_zfs(directory = dir['dir'], device = dir['volume']['dev'], host = host, backup_type = dir['type'], timestamp = timestamp)
-            if backup[0]:
-              notification +=  backup[1]+ "\n"
-            else:
-              raise Error(backup[1])
+
+    for dir in [archive, journal]:
+      if dir != None and "volume" in dir:
+        if "ebs_volume" in dir['volume'] and self.backup_type in ["ebs", "auto", None]:
+          # This is an amazon EBS volume
+          name = self.__backup_ebs(dir, host, timestamp = timestamp, comment = comment)
+          notification += "Created an EBS nuodb_backup of %s:%s with snapshot id %s" % (self.database, dir['type'], name[1]) + "\n"
+        elif "type" in dir['volume'] and dir['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
+          backup = self.__backup_zfs(dir, host, timestamp = timestamp, comment = comment)
+          if backup[0]:
+            notification +=  backup[1]+ "\n"
           else:
-            raise Error("Unknown backup type")
+            raise Error(backup[1])
+        else:
+          self.__backup_tarball(
+                           archive = archive, journal = journal,
+                           destination = self.tarball_destination,
+                           host = host,
+                           timestamp = timestamp
+                           )
     print "Start SM..."
     if journal == None or journal['dir'] == None:
       journal_dir = None
@@ -228,14 +226,32 @@ class Backup():
     snapshot.add_tag("NuoDB", z)
     return (True, snapshot.id)
     
-  def __backup_zfs(self, directory, device, host, backup_type = "", timestamp = time.time()):
+  def __backup_zfs(self, vol, host, timestamp = time.time(), comment = None):
+    print vol
+    mount = vol['mount']
+    backup_type = vol['backup_type']
     time_formatted = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(timestamp))
-    if backup_type != "":
-      dbname = ":".join([backup_type, self.database])
+    dbname = ":".join([backup_type, self.database])
+    if backup_type != "full":
+      if backup_type == "journal":
+        metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "jd": vol['dir']}
+      else:
+        metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir']}
     else:
-      dbname = self.database
-    description = "NuoDB Backup of %s from %s on %s" % (dbname, host.hostname, time_formatted)
-    command = "sudo zfs snapshot %s@\"%s\"" % (device, description)
+      metadata = {"t": timestamp, "db": self.database, "b": backup_type, "m": mount, "ad": vol['dir'], "jd": vol['journal_dir']}
+    name = "%s@%s" % (dbname, time_formatted)
+    
+    if comment == None:
+      metadata['c'] = 0
+      comment = "NuoDB backup of %s from %s" % (self.database, host.name)
+    else:
+      metadata['c'] = 1
+    time_formatted = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(timestamp))
+    metadata_json = json.dumps(metadata)
+    # ZFS snapshots can only contain alphanumeric characters, space "-", "_", "." and ":". Sanitize the name
+    z = base64.b64encode(zlib.compress(metadata_json)).__str__().replace("=", "_").replace("/", ".").replace("+", ":")
+    description = "-".join(["nuo", z])
+    command = "sudo zfs snapshot %s@%s" % (vol['volume']['dev'], description)
     rc, stdout, stderr = host.execute_command(command)
     if  rc != 0:
       returnmessage = "Command %s failed to execute: %s" % (command, stderr)
@@ -309,7 +325,7 @@ class Backup():
           except Error, e:
             print e
       for t in sorted(backups.keys(), cmp=reverse_numeric):
-        ret.append([backups[t]["c"], backups[t]["s"], t])
+        ret.append([backups[t]["c"], backups[t]["s"], "ebs"])
     if self.tarball_destination != None:
       self.host_obj = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
       command = "ls -lrn %s/NuoDB_backup* | awk '{print $9}'" % self.tarball_destination
@@ -327,7 +343,30 @@ class Backup():
                 desc = time.strftime("%d%b%Y %H:%M:%S GMT", time.gmtime(int(desc)))
               except:
                 pass
-              ret.append((desc, f.rstrip()))
+              ret.append((desc, f.rstrip(), "tar"))
+    self.host_obj = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    if self.host_obj.execute_command("which zfs")[0] == 0:
+      backups = {}
+      # zfs is installed, see if we have any backups
+      command = "sudo zfs list -t snapshot | awk '{print $1}' | grep nuo-"
+      snapshots =  self.host_obj.execute_command(command)
+      for snapshot in snapshots[1].split("\n"):
+        if "nuo-" in snapshot:
+          unpack = snapshot.split("nuo-")
+          unpack[1] = unpack[1].rstrip().replace("_","=").replace(".","/").replace(":","+")
+          data = json.loads(zlib.decompress(base64.b64decode(unpack[1])))
+          if data['db'] == self.database:
+            t = data['t']
+            if "c" in data and data['c'] == 1:
+              c = " ".join([s.description, time.strftime("(%d%b%Y %H:%M:%S GMT)", time.gmtime(t))])
+            else:
+              c = " ".join([data['db'], time.strftime("(%d%b%Y %H:%M:%S GMT)", time.gmtime(t))])
+            if t not in backups:
+                backups[t] = {"c": c, "s":[snapshot.rstrip()]}
+            else:
+              backups[t]["s"].append(snapshot.rstrip())
+      for t in sorted(backups.keys(), cmp=reverse_numeric):
+        ret.append([backups[t]["c"], backups[t]["s"], "zfs"])
     return ret
   
   def restore_ebs(self, db_user = None, db_password = None, snapshots = []):
@@ -336,7 +375,7 @@ class Backup():
     archive_dir = None
     mounts = []
     if db_user == None or db_password == None:
-      raise Error("You must specify db_user and db_password for the new database to restore it.")
+      raise Error("You must specify db-user and db-password for the new database to restore it.")
     for host in hosts:
       if host['hostname'] == self.host:
         self.restorehost_id = host['id']
@@ -384,10 +423,12 @@ class Backup():
   def restore_tarball(self, db_user = None, db_password = None, tarball = None):
     hosts = self.domainConnection.get_hosts()
     if db_user == None or db_password == None:
-      raise Error("You must specify db_user and db_password for the new database to restore it.")
+      raise Error("You must specify db-user and db-password for the new database to restore it.")
     for host in hosts:
       if host['hostname'] == self.host:
         self.restorehost_id = host['id']
+        if socket.gethostname() != self.host and ( self.ssh_username == None or self.ssh_keyfile == None): 
+          raise Error("When restoring to a host that is not local you must provide ssh credentials")
         self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     if not hasattr(self, "restorehost"):
       raise Error("No member of the domain found at %s" % self.host)
@@ -429,6 +470,47 @@ class Backup():
     self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost_id, user = db_user, password = db_password)
     print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
   
+  def restore_zfs(self, db_user = None, db_password = None, snapshots = []):
+    hosts = self.domainConnection.get_hosts()
+    if db_user == None or db_password == None:
+      raise Error("You must specify db-user and db-password for the new database to restore it.")
+    for host in hosts:
+      if host['hostname'] == self.host:
+        self.restorehost_id = host['id']
+        if socket.gethostname() != self.host and ( self.ssh_username == None or self.ssh_keyfile == None): 
+          raise Error("When restoring to a host that is not local you must provide ssh credentials")
+        self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
+    if not hasattr(self, "restorehost"):
+      raise Error("No member of the domain found at %s" % self.host)
+    commands = []
+    dbname = ""
+    restore_data = {}
+    for snapshot in snapshots:
+      unpack = snapshot.split("nuo-")
+      unpack[1] = unpack[1].rstrip().replace("_","=").replace(".","/").replace(":","+")
+      data = json.loads(zlib.decompress(base64.b64decode(unpack[1])))
+      dbname = "_".join([data['db'], str(int(data['t']))])
+      if "jd" in data:
+        self.restoredb = "_".join([data['db'], str(int(data['t']))])
+        dir = "_".join([data['jd'], str(int(data['t']))])
+        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', dir)))
+        restore_data['journal_dir'] = dir
+      if "ad" in data:
+        self.restoredb = "_".join([data['db'], str(int(data['t']))])
+        dir = "_".join([data['ad'], str(int(data['t']))])
+        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', dir)))
+        restore_data['archive_dir'] = dir
+    for command in commands:
+      r = self.restorehost.execute_command(command)
+      if r[0] != 0:
+        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+    self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
+    print "Starting SM..."
+    self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = restore_data['archive_dir'], journal_dir = restore_data['journal_dir'])
+    print "Starting TE..."
+    self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost_id, user = db_user, password = db_password)
+    print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
+
   def start_process(self, database, processtype="SM", host = None, archive_dir= None, journal_dir = None, user = None, password = None):
     if isinstance(host, nuodbTools.aws.Host):
       host_id = self.domainConnection.get_host_id(host.name)
