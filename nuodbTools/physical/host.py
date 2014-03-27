@@ -182,13 +182,7 @@ class Host:
       return "Host does not exist"
           
   def terminate(self):
-    if self.exists:
-      # self.dns_delete()
-      self.ec2Connection.terminate_instances(self.id)
-      self.exists = False
-      return("Terminated " + self.name)
-    else:
-      return("Cannot terminate " + self.name + " as node does not exist.")
+    return (False, "Not supported")
           
   def update_data(self):
     good = False

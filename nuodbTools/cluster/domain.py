@@ -93,7 +93,7 @@ class Domain():
         print req.content
         print "DEBUG: method: %s" % action
         print "DEBUG: url: %s" % url
-        print "DEBUG: data: %s" % json.dumps(data)
+        print "DEBUG: data: %s" % data
         print "DEBUG: headers: %s" % json.dumps(headers)
         req.raise_for_status()
     

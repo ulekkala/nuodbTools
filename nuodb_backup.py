@@ -11,15 +11,15 @@ parser.add_argument("-a", "--action", dest='action', action='store', help="What 
 parser.add_argument("-db", "--database", dest='database', action='store', help="Target database", required = True )
 parser.add_argument("--host", dest='host', action='store', help="Host to take the backup on", required = True)
 parser.add_argument("--rest-url", dest='rest_url', action='store', help="URL of a running NuoDB REST service", required = True )
-parser.add_argument("--rest-username", dest='rest_username', action='store', help="Username for the NuoDB REST service", required = True )
-parser.add_argument("--rest-password", dest='rest_password', action='store', help="Password for the NuoDB REST service", required = True )
+parser.add_argument("--rest-username", "--rest-user", dest='rest_username', action='store', help="Username for the NuoDB REST service", required = True )
+parser.add_argument("--rest-password", "--rest-pass", dest='rest_password', action='store', help="Password for the NuoDB REST service", required = True )
 parser.add_argument("--aws-key", dest='aws_key', action='store', default = None, help="AWS access key. Only needed for Amazon Web Services instances.", required = False)
 parser.add_argument("--aws-secret", dest='aws_secret', action='store', default = None, help="AWS secret. Only needed for Amazon Web Services instances.", required = False)
 parser.add_argument("--aws-region", dest='aws_region', action='store', default = None, help="AWS region to connect to", required = False )
 parser.add_argument("--ssh-username", dest='ssh_username', action='store', default = None, help="For non-local backups this script will need to ssh in to a host. Use this username.", required = False)
 parser.add_argument("--ssh-key", dest='ssh_keyfile', action='store', default = None, help="SSH private key file", required = False)
 parser.add_argument("--backup-type", dest='backup_type', action='store', help="SSH private key file", choices=["auto", "ebs", "tarball", "zfs"], default="auto", required = False)
-parser.add_argument("--tarball-dest", dest='tarball_destination', action='store', help="For tarball type backups, put the tarball in this directory on the host", required = False)
+parser.add_argument("--tarball-dest", "--tarball-dir", dest='tarball_destination', action='store', help="For tarball type backups, put the tarball in this directory on the host", required = False)
 parser.add_argument("--comment", dest='comment', action='store', help="Human readable comment on the backup", default = None, required = False)
 parser.add_argument("--snapshot", dest='snapshot', action='store', help="AWS snapshot to recover from", default = None, required = False)
 parser.add_argument("--db-user", dest='db_user', action='store', help="RESTORE ONLY. The user for the restore DB TE", default = None, required = False)
@@ -81,12 +81,17 @@ elif args.action == "restore":
     options.append(b[0])
   print "Choose a backup of database '%s' to restore:" % args.database
   choice = choose_from_list(params = options)
-  if hasattr(bu, "ec2Connection") and bu.ec2Connection != None:
+  if bu.backups[choice][2].lower() == "ebs":
     bu.restore_ebs(db_user = args.db_user, db_password = args.db_pass, snapshots = bu.backups[choice][1])
+  elif bu.backups[choice][2].lower() == "zfs":
+    bu.restore_zfs(db_user = args.db_user, db_password = args.db_pass, snapshots = bu.backups[choice][1])
   else:
     bu.restore_tarball(db_user = args.db_user, db_password = args.db_pass, tarball = bu.backups[choice][1])
   #if "snap-" in args.snapshot:
   #  db.restore([args.snapshot])
+elif args.action == "list":
+  for b in bu.backups:
+    print "%s\t%s\t%s" % (b[0], ",".join(b[1]), b[2])
 else:
   print "Invalid action. Exiting."
   

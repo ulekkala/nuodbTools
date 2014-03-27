@@ -134,13 +134,13 @@ class Host:
         if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
             
-  def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None):
+  def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None, ebs_optimized = False):
         if not self.exists:
             if userdata != None:
               self.userdata = userdata
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection) 
+            reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
             self.exists = True
             for instance in reservation.instances:
                 self.instance = instance
@@ -159,16 +159,19 @@ class Host:
             if zone.find_records(fqdn, "A") != None:
                 zone.delete_a(fqdn)
   
-  def dns_set(self, type = "A", record = None, value = None):
+  def dns_set(self, type = "A", record = None, value = None, interface = "ext"):
         zone = self.Route53Connection.get_zone(self.dns_domain)
         if record != None:
-          records = {record: value}
+          records = {record: value}.iteritems()
         else:
           while self.int_ip == None or self.ext_ip == None or len(self.int_ip) == 0 or len(self.ext_ip) == 0:
             self.update_data()
             print "Waiting for IPs..."
             time.sleep(5)
-          records = {self.name: self.ext_ip}.iteritems()
+          if interface == "ext":
+            records = {self.name: self.ext_ip}.iteritems()
+          else:
+            records = {self.name: self.int_ip}.iteritems()
         for fqdn, value in records:
           if type == "TXT":
             pass
@@ -321,9 +324,9 @@ class Host:
       # self.dns_delete()
       self.ec2Connection.terminate_instances(self.id)
       self.exists = False
-      return("Terminated " + self.name)
+      return(True, "Terminated " + self.name)
     else:
-      return("Cannot terminate " + self.name + " as node does not exist.")
+      return(False, "Cannot terminate " + self.name + " as node does not exist.")
           
   def update_data(self):
     good = False

@@ -21,6 +21,7 @@ class Zone:
                 self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
             except Exception, e:
                 print e
+        return securityGroup
     def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip, src_group=None, dry_run=None):
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
     @property
