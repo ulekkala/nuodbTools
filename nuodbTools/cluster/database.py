@@ -1,7 +1,7 @@
 import collections
 import json
 import nuodbTools.cluster
-
+import random
 
 class Database():
     def __init__(self, name, domain = None):
@@ -59,8 +59,15 @@ class Database():
     def start_process(self, processtype = "SM", host_id = None, archive = None, journal = None, initialize = False, user = None, password = None):
       # curl -X POST -H "Accept: application/json" -H "Content-type: application/json" -u domain:bird -d '{ "type": "TE", "dbname": "foo", "options": {"--dba-user": "dba", "--dba-password": "goalie" } }' http://localhost:8888/api/processes
       # curl -X POST -H "Accept: application/json" -H "Content-type: application/json" -u domain:bird -d '{ "type": "SM", "host": "194e1a9e-ea6d-4874-a030-98c1522c64b3", "dbname": "foo", "initialize": true, "overwrite": false, "archive": "/tmp", "options": {"--journal": "enable", "--journal-dir": "/journal"} }' http://localhost:8888/api/processes
+      # Find the host with the fewest processes
+      data = collections.OrderedDict()
+      if host_id == None:
+        hosts =[]
+        
+        for host in self.domain.get_hosts():
+          hosts.append((len(host['processes']), host['id']))
+        host_id = sorted(hosts)[0][1]
       if processtype == "SM":
-        data = collections.OrderedDict()
         data["type"] = "SM"
         data['host'] = host_id
         data["dbname"] = self.name
@@ -73,7 +80,6 @@ class Database():
       elif processtype == "TE":
         if user == None or password == None:
           Error("You must populate 'user' and 'password' fields when starting TEs")
-        data = collections.OrderedDict()
         data["type"] = "TE"
         data["host"] = host_id
         data["dbname"] = self.name
@@ -82,7 +88,12 @@ class Database():
         data["options"]["--dba-password"] = password
       else:
         raise Error("Invalid value %s for processtype" % processtype)
-      self.domain.rest_req("POST", "/processes", data=data)
+      r = self.domain.rest_req("POST", "/processes", data=data)
+      if isinstance(r, dict):
+        return r
+      else:
+        raise Error("Could not start process %s: %s" % (json.dumps(data), r))
+      
       
     def stop_process(self, process_id):
       for process in self.processes:

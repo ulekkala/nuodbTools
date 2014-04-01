@@ -229,6 +229,8 @@ class Host:
         self.ssh_connection.connect(host, username=self.ssh_user)
       except HostError, e:
         print "Unable to SSH to %s with username %s: %s" % (host, self.ssh_user, e)
+      except:
+        self.ssh_connection.connect(self.ext_ip, username=self.ssh_user)
  
   def health(self):
     return self.execute_command("sudo service nuoagent status")[0]
