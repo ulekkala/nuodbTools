@@ -110,7 +110,7 @@ class Cluster:
                                              isBroker = isBroker, ssh_key = self.ssh_key, ssh_keyfile = self.ssh_keyfile)
       return host
 
-    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False):
+    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False, ebs_optimized = True):
       if instance_type == None:
         instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
@@ -122,7 +122,7 @@ class Cluster:
       template = string.Template(f.read())
       f.close()
       userdata = template.substitute(template_vars)
-      obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
+      obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata, ebs_optimized=ebs_optimized)
       print ("Waiting for %s to start" % obj.name),
       if obj.status() != "running":
         print("."),
