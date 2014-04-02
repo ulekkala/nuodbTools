@@ -140,7 +140,14 @@ class Host:
               self.userdata = userdata
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
+            if instance_type != "t1.micro":
+              xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
+              xvdb.ephemeral_name = 'ephemeral0'
+              bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
+              bdm['/dev/xvdb'] = xvdb
+              reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm) 
+            else:
+              reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
             self.exists = True
             for instance in reservation.instances:
                 self.instance = instance

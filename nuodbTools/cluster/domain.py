@@ -27,12 +27,6 @@ class Domain():
         elif self.rest_protocol == "http":
           self.rest_port = 80
       self.rest_query_string = "/".join(path_components[1:len(path_components)])
-      ip_pattern = re.compile("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
-      if not ip_pattern.match(self.rest_hostname):
-        try:
-          self.rest_ip = socket.gethostbyname(self.rest_hostname)
-        except:
-          raise Error("Could not find a valid address for %s" % self.rest_hostname)
       db_url = "/".join([self.rest_url, "databases"])
       #r = requests.get(db_url, auth=(rest_username, rest_password)) 
       #if r.status_code != 200:
@@ -66,6 +60,12 @@ class Domain():
       return processes
         
     def rest_req(self, action="GET", path="", data=None, timeout=10):
+      ip_pattern = re.compile("^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+")
+      if not ip_pattern.match(self.rest_hostname):
+        try:
+          self.rest_ip = socket.gethostbyname(self.rest_hostname)
+        except:
+          raise Error("Could not find a valid address for %s" % self.rest_hostname)
       if path[0] == "/":
         path = path[1:len(path)]
       url = "/".join([self.rest_url, path])

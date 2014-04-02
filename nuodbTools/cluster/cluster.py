@@ -21,7 +21,7 @@ class Cluster:
                  domain_name="domain", 
                  domain_password="bird", 
                  enable_monitoring = True,
-                 instance_type = "m1.large", 
+                 instance_type = "m3.large", 
                  nuodb_license = "", 
                  ssh_key = "", 
                  ssh_keyfile = None):
