@@ -1,4 +1,5 @@
 import boto.ec2
+import traceback
 
 class Zone:
     def __init__(self, name):
@@ -17,12 +18,18 @@ class Zone:
         if not exists:
             securityGroup = self.connection.create_security_group(name, description)
         for rule in rules:
-            try:
-                self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
-            except Exception, e:
-                print e
+          try:
+            if rule['cidr_ip'] == "self":
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], src_group=securityGroup)
+            else:
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
+          except:
+            pass
         return securityGroup
-    def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip, src_group=None, dry_run=None):
+    def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip = None, src_group=None, dry_run=None):
+      if src_group != None:
+        securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, src_group = src_group)
+      else:
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
     @property
     def amis(self):
@@ -54,6 +61,9 @@ class Zone:
             i['name'] = ""
           instances.append(i)
       return instances
+    @property
+    def security_groups(self):
+      return self.connection.get_security_groups()
     @property
     def snapshots(self):
       return self.connection.get_all_snapshots(owner="self")
