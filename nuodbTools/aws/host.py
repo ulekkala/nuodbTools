@@ -159,7 +159,10 @@ class Host:
             print("Node " + self.name + " already exists. Not starting again.")
             self.update_data()
             return self
-    
+  
+  def detach_volume(self, mount_point, force = False):
+    pass
+  
   def dns_delete(self):
         zone = self.Route53Connection.get_zone(self.dns_domain)
         for fqdn in [self.name]:
@@ -182,11 +185,16 @@ class Host:
         for fqdn, value in records:
           if type == "TXT":
             pass
+          elif type == "CNAME":
+            if zone.find_records(fqdn, "CNAME") != None:
+              zone.update_cname(fqdn, value=value, ttl=60)
+            else:
+              zone.add_cname(fqdn, value=value)
           else:
             if zone.find_records(fqdn, "A") != None:
-                zone.update_a(fqdn, value=value, ttl=60)
+              zone.update_a(fqdn, value=value, ttl=60)
             else:
-                zone.add_a(fqdn, value=value)
+              zone.add_a(fqdn, value=value)
     
   def __get_amazon_field(self, key, metadata_cmd):
     if len(key) == 0:
@@ -377,6 +385,12 @@ class Host:
         v = volume.attach_data
         if v.status == "attached" and v.instance_id== self.instance.id:
           infra_devices[v.device] = v.id
+          r = self.execute_command("readlink %s" % v.device)
+          if r[0] == 0 and len(r[1]) > 0:
+            tgt = r[1].lstrip().rstrip()
+            if tgt[0] != "/":
+              tgt = "/".join([os.path.dirname(v.device), tgt])
+            infra_devices[tgt] = v.id
     for line in mount_lines:
       if len(line) > 0:
         fields = line.split(" ")
