@@ -18,7 +18,7 @@ parser.add_argument("--aws-secret", dest='aws_secret', action='store', default =
 parser.add_argument("--aws-region", dest='aws_region', action='store', default = None, help="AWS region to connect to", required = False )
 parser.add_argument("--ssh-username", dest='ssh_username', action='store', default = None, help="For non-local backups this script will need to ssh in to a host. Use this username.", required = False)
 parser.add_argument("--ssh-key", dest='ssh_keyfile', action='store', default = None, help="SSH private key file", required = False)
-parser.add_argument("--backup-type", dest='backup_type', action='store', help="SSH private key file", choices=["auto", "ebs", "tarball", "zfs"], default="auto", required = False)
+parser.add_argument("--backup-type", dest='backup_type', action='store', help="Type of backup to take", choices=["ebs", "tarball", "zfs"], default="auto", required = False)
 parser.add_argument("--tarball-dest", "--tarball-dir", dest='tarball_destination', action='store', help="For tarball type backups, put the tarball in this directory on the host", required = False)
 parser.add_argument("--comment", dest='comment', action='store', help="Human readable comment on the backup", default = None, required = False)
 parser.add_argument("--snapshot", dest='snapshot', action='store', help="AWS snapshot to recover from", default = None, required = False)

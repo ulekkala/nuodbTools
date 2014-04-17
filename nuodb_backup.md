@@ -20,7 +20,7 @@ You should always run more than one storage manager on a production database for
                        --rest-password REST_PASSWORD [--aws-key AWS_KEY]
                        [--aws-secret AWS_SECRET] [--aws-region AWS_REGION]
                        [--ssh-username SSH_USERNAME] [--ssh-key SSH_KEYFILE]
-                       [--backup-type {auto,ebs,tarball,zfs}]
+                       [--backup-type {ebs,tarball,zfs}]
                        [--tarball-dest TARBALL_DESTINATION]
                        [--comment COMMENT] [--snapshot SNAPSHOT]
                        [--db-user DB_USER] [--db-password DB_PASS]`
