@@ -133,7 +133,7 @@ class Host:
     else:
       return False
     
-  def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-rest-api.yml", "webapp.properties"]):
+  def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-frontend-api.yml", "webapp.properties"]):
         if len(peers) > 0:
             self.peers = peers
         if enableAutomation != self.enableAutomation:

@@ -140,7 +140,7 @@ class Host:
               self.userdata = userdata
             interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
             interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            if instance_type != "t1.micro":
+            if instance_type != "t1.micro" and self.ec2Connection.get_image(ami).root_device_type !='instance-store':
               xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
               xvdb.ephemeral_name = 'ephemeral0'
               bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
@@ -271,7 +271,7 @@ class Host:
     else:
       return False
     
-  def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-rest-api.yml", "webapp.properties"]):
+  def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-frontend-api.yml", "webapp.properties"]):
         if len(peers) > 0:
             self.peers = peers
         if enableAutomation != self.enableAutomation:
@@ -391,6 +391,8 @@ class Host:
             if tgt[0] != "/":
               tgt = "/".join([os.path.dirname(v.device), tgt])
             infra_devices[tgt] = v.id
+    print "Infra devices:"
+    print infra_devices # DEBUG
     for line in mount_lines:
       if len(line) > 0:
         fields = line.split(" ")

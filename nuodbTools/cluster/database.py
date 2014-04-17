@@ -63,7 +63,6 @@ class Database():
       data = collections.OrderedDict()
       if host_id == None:
         hosts =[]
-        
         for host in self.domain.get_hosts():
           hosts.append((len(host['processes']), host['id']))
         host_id = sorted(hosts)[0][1]

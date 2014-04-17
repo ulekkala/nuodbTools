@@ -14,7 +14,12 @@ class sql():
                  password,
                  options
                  ):
-      self.connection = pynuodb.connect(dbname, host, username, password, options)
+      self.dbname = dbname
+      self.host = host
+      self.username = username
+      self.password = password
+      self.options = options
+      self.connect()
       
     def close(self):
       self.connection.close()
@@ -27,9 +32,17 @@ class sql():
       except:
         return False
       
+    def connect(self):
+      self.connection = pynuodb.connect(self.dbname, self.host, self.username, self.password, self.options)
+      
     def execute(self, command, autocommit = False, associative = False):
       cursor = self.connection.cursor()
-      cursor.execute(command)
+      try: 
+        cursor.execute(command)
+      except pynuodb.session.SessionException, e:
+        self.connect()
+        cursor = self.connection.cursor()
+        cursor.execute(command)
       if autocommit:
         cursor.execute("COMMIT")
       if command.split(" ")[0] != "SELECT" or not associative:

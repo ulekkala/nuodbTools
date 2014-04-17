@@ -24,11 +24,13 @@ class Backup():
                domainConnection = None, ec2Connection = None, 
                rest_username=None, rest_password=None, rest_url=None, 
                ssh_username=None, ssh_keyfile=None, 
-               tarball_destination = None, backup_type = "auto"):
+               tarball_destination = None, backup_type = None):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
       
+    if backup_type == None:
+      raise Error("You must specify a --backup-type: ebs, zfs, tarball.")
     if backup_type == "tarball" and tarball_destination == None:
       raise Error("Tarball nuodb_backup must have a destination")
     if not hasattr(self, 'domainConnection') or self.domainConnection == None:
@@ -83,6 +85,7 @@ class Backup():
     uid = mysm['uid']
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
+    print self.ec2Connection
     if self.ec2Connection != None:
       self.backuphost = nuodbTools.aws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     else:
@@ -117,7 +120,8 @@ class Backup():
     journal['volume'] = self.backuphost.volume_mounts[journal['mount']]
     print "Archive on %s of type %s" % (archive['mount'], archive['volume']['type'])
     print "Journal on %s of type %s" % (journal['mount'], journal['volume']['type'])
-    
+    print archive
+    print journal
     # We have 2 kinds of backups, online and offline.
     # Online can be done when the mounts are the same and the mount supports file system snapshotting
     notification = "Nada"

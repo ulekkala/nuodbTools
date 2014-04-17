@@ -2,8 +2,9 @@ import boto.ec2
 import traceback
 
 class Zone:
-    def __init__(self, name):
+    def __init__(self, name, vpc_id = None):
         self.name = name
+        self.vpc_id = vpc_id
     def connect(self, aws_access_key, aws_secret):
         self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
         return self.connection
@@ -16,7 +17,7 @@ class Zone:
                 securityGroup = security_group
                 exists = True
         if not exists:
-            securityGroup = self.connection.create_security_group(name, description)
+            securityGroup = self.connection.create_security_group(name, description, vpc_id=self.vpc_id)
         for rule in rules:
           try:
             if rule['cidr_ip'] == "self":
