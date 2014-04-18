@@ -22,7 +22,7 @@ You should always run more than one storage manager on a production database for
                        [--ssh-username SSH_USERNAME] [--ssh-key SSH_KEYFILE]
                        [--backup-type {ebs,tarball,zfs}]
                        [--tarball-dest TARBALL_DESTINATION]
-                       [--comment COMMENT] [--snapshot SNAPSHOT]
+                       [--comment COMMENT]
                        [--db-user DB_USER] [--db-password DB_PASS]`
 
 ### Backing up & restoring a database to a point-in-time for selective recovery

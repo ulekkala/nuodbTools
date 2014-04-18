@@ -120,8 +120,6 @@ class Backup():
     journal['volume'] = self.backuphost.volume_mounts[journal['mount']]
     print "Archive on %s of type %s" % (archive['mount'], archive['volume']['type'])
     print "Journal on %s of type %s" % (journal['mount'], journal['volume']['type'])
-    print archive
-    print journal
     # We have 2 kinds of backups, online and offline.
     # Online can be done when the mounts are the same and the mount supports file system snapshotting
     notification = "Nada"
@@ -326,10 +324,11 @@ class Backup():
                 backups[t] = {"c": c, "s":[s.id]}
               else:
                 backups[t]["s"].append(s.id)
+              backups[t]["d"] = data
           except Error, e:
             print e
       for t in sorted(backups.keys(), cmp=reverse_numeric):
-        ret.append([backups[t]["c"], backups[t]["s"], "ebs"])
+        ret.append([backups[t]["c"], backups[t]["s"], "ebs", backups[t]["d"]])
     if self.tarball_destination != None:
       self.host_obj = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
       command = "ls -lrn %s/NuoDB_backup* | awk '{print $9}'" % self.tarball_destination
@@ -370,7 +369,7 @@ class Backup():
             else:
               backups[t]["s"].append(snapshot.rstrip())
       for t in sorted(backups.keys(), cmp=reverse_numeric):
-        ret.append([backups[t]["c"], backups[t]["s"], "zfs"])
+        ret.append([backups[t]["c"], backups[t]["s"], "zfs", data])
     return ret
   
   def restore_ebs(self, db_user = None, db_password = None, snapshots = []):
@@ -397,7 +396,7 @@ class Backup():
         raise Error("Can't find necessary NuoDB metadata from 'tags' of %s. Cannot continue." % snapshot.id)
       data = json.loads(zlib.decompress(base64.b64decode(snapshot.__dict__['tags']['NuoDB'])))
       mount_point = data['m'] + "_%s" % str(int(data['t']))
-      dbname = os.path.basename(mount_point)
+      dbname = data['db']+ "_%s" % str(int(data['t']))
       mounts.append({"mount": mount_point, "size": snapshot.volume_size, "snap": snapshot.id, "db": data['db'], "time": data['t']})
       if data['b'] == "full":
         journal_dir = re.sub(data['m'], mount_point, data['jd'])

@@ -391,8 +391,6 @@ class Host:
             if tgt[0] != "/":
               tgt = "/".join([os.path.dirname(v.device), tgt])
             infra_devices[tgt] = v.id
-    print "Infra devices:"
-    print infra_devices # DEBUG
     for line in mount_lines:
       if len(line) > 0:
         fields = line.split(" ")
