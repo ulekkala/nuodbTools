@@ -86,7 +86,6 @@ class Backup():
     uid = mysm['uid']
     hostname = mysm['hostname']
     print "Working on %s..." % hostname
-    print self.ec2Connection
     if self.ec2Connection != None:
       self.backuphost = nuodbTools.aws.Host(ec2Connection = self.ec2Connection, name = mysm['hostname'], ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     else:
