@@ -312,7 +312,7 @@ class Backup():
       l = self.ec2Connection.get_all_snapshots(owner = "self")
       for s in l:
         dict = s.__dict__
-        if "tags" in dict and "NuoDB" in dict['tags']:
+        if "tags" in dict and "NuoDB" in dict['tags'] and s.status == "completed":
           try:
             data = json.loads(zlib.decompress(base64.b64decode(dict['tags']['NuoDB'])))
             if data['db'] == self.database:
