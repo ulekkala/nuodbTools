@@ -13,6 +13,7 @@ import inspect, json, random, time
 import os.path
 import re
 import socket
+import sys
 import tempfile
 import uuid
 import zlib
@@ -30,16 +31,16 @@ class Backup():
       setattr(self, i, values[i])
       
     if backup_type == None:
-      raise Error("You must specify a --backup-type: ebs, zfs, tarball.")
+      raise nuodbTools.Error("You must specify a --backup-type: ebs, zfs, tarball.")
     if backup_type == "tarball" and tarball_destination == None:
-      raise Error("Tarball nuodb_backup must have a destination")
+      raise nuodbTools.Error("Tarball nuodb_backup must have a destination")
     if not hasattr(self, 'domainConnection') or self.domainConnection == None:
       self.domainConnection = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username=rest_username, rest_password=rest_password)
     if backup_type == "tarball" or tarball_destination != None:
       self.tarball_destination = tarball_destination
     if self.ec2Connection == None and backup_type.lower() == "ebs":
       if aws_region == None or aws_access_key == None or aws_secret == None:
-        raise Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
+        raise nuodbTools.Error("aws_region, aws_access_key & aws_secret parameters must be defined for AWS")
       self.ec2Connection = boto.ec2.connect_to_region(aws_region, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
     self.db = nuodbTools.cluster.Database(name=self.database, domain = self.domainConnection)
     
@@ -67,7 +68,7 @@ class Backup():
       else:
         return "/".join(common)
     if self.database not in self.domainConnection.get_databases():
-      raise Error("Can not find database %s in domain provided" % self.database)
+      raise nuodbTools.Error("Can not find database %s in domain provided" % self.database)
     sm_processes = self.db.get_processes(type="SM")
     if self.host != None:
       exists = False
@@ -115,7 +116,7 @@ class Backup():
       if journal['mount'] == None or len(root_dir) > len(journal['mount']):
         journal['mount'] = root_dir
     if archive['mount'] == None or journal['mount'] == None:
-      raise Error("Can't determine mount points for %s and %s" % (archive['dir'], journal['dir']))
+      raise nuodbTools.Error("Can't determine mount points for %s and %s" % (archive['dir'], journal['dir']))
     archive['volume'] = self.backuphost.volume_mounts[archive['mount']]
     journal['volume'] = self.backuphost.volume_mounts[journal['mount']]
     print "Archive on %s of type %s" % (archive['mount'], archive['volume']['type'])
@@ -182,7 +183,7 @@ class Backup():
           if backup[0]:
             notification +=  backup[1]+ "\n"
           else:
-            raise Error(backup[1])
+            raise nuodbTools.Error(backup[1])
         else:
           self.__backup_tarball(
                            archive = archive, journal = journal,
@@ -221,7 +222,7 @@ class Backup():
     metadata_json = json.dumps(metadata)
     z = base64.b64encode(zlib.compress(metadata_json))
     if len(z) > 254:
-      raise Error("Metadata for a backup is limited to 255 characters compressed. Got %s after using zlib and base64: %s" % (len(z), metadata_json))
+      raise nuodbTools.Error("Metadata for a backup is limited to 255 characters compressed. Got %s after using zlib and base64: %s" % (len(z), metadata_json))
     snapshot = self.ec2Connection.create_snapshot(volume_id = vol['volume']['ebs_volume'], description = comment[0:254])
     snapshot.update()
     snapshot.add_tag("Name", name)
@@ -291,7 +292,7 @@ class Backup():
               """ % (archive['dir'], journal['dir'], destination)
     r = host.execute_command(command)
     if r[0] != 0:
-      raise Error(r[2])
+      raise nuodbTools.Error(r[2])
     host.copy(metadata_file.name, "/".join([destination, os.path.basename(metadata_file.name)]))
     command = "cd %s; sudo tar -czf %s %s %s %s" % (destination, "/".join([self.tarball_destination, filename]), os.path.basename(metadata_file.name), archive['dir'], journal['dir'])
     print command
@@ -334,7 +335,7 @@ class Backup():
       command = "ls -lrn %s/NuoDB_backup* | awk '{print $9}'" % self.tarball_destination
       r = self.host_obj.execute_command(command)
       if r[0] != 0:
-        raise Error("Can't find backups in %s: %s" % self.tarball_destination, r[2]) 
+        raise nuodbTools.Error("Can't find backups in %s: %s" % self.tarball_destination, r[2]) 
       else:
         files = r[1].split("\n")
         for f in files:
@@ -378,22 +379,22 @@ class Backup():
     archive_dir = None
     mounts = []
     if db_user == None or db_password == None:
-      raise Error("You must specify db-user and db-password for the new database to restore it.")
+      raise nuodbTools.Error("You must specify db-user and db-password for the new database to restore it.")
     for host in hosts:
       if host['hostname'] == self.host:
         self.restorehost_id = host['id']
         if self.ec2Connection != None:
           self.restorehost = nuodbTools.aws.Host(ec2Connection = self.ec2Connection, name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
         else:
-          raise Error("A valid ec2 connection cannot be found.")
+          raise nuodbTools.Error("A valid ec2 connection cannot be found.")
           #self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     if not hasattr(self, "restorehost"):
-      raise Error("No member of the domain found at %s" % self.host)
+      raise nuodbTools.Error("No member of the domain found at %s" % self.host)
     list = self.ec2Connection.get_all_snapshots(snapshot_ids = snapshots)
     dbname = ""
     for snapshot in list:
       if "tags" not in snapshot.__dict__ or not "NuoDB" in snapshot.__dict__['tags']:
-        raise Error("Can't find necessary NuoDB metadata from 'tags' of %s. Cannot continue." % snapshot.id)
+        raise nuodbTools.Error("Can't find necessary NuoDB metadata from 'tags' of %s. Cannot continue." % snapshot.id)
       data = json.loads(zlib.decompress(base64.b64decode(snapshot.__dict__['tags']['NuoDB'])))
       mount_point = data['m'] + "_%s" % str(int(data['t']))
       dbname = data['db']+ "_%s" % str(int(data['t']))
@@ -407,15 +408,15 @@ class Backup():
         journal_dir = re.sub(data['m'], mount_point, data['jd'])
     self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
     if self.restoredb.exists:
-      raise Error("Database %s already exists in the domain. Cannot restore an already running database." % dbname)
+      raise nuodbTools.Error("Database %s already exists in the domain. Cannot restore an already running database." % dbname)
     for mount in mounts:
       print "Mounting %s" % mount['mount']
       try:
         r = self.restorehost.attach_volume(size= mount['size'], mount_point = mount['mount'], snapshot = mount['snap'])
-        if r[0] != 0:
-          raise Error("Error trying to attach volume on %s from snapshot %s: %s" % (mount['mount'], mount['snap'], r[2]))
-      except:
-        print "... already mounted"
+        if r[0] != True:
+          raise nuodbTools.Error("Error trying to attach volume on %s from snapshot %s: %s" % (mount['mount'], mount['snap'], r[2]))
+      except nuodbTools.cluster.backup.Error, e:
+       print e
     
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost, archive_dir = archive_dir, journal_dir = journal_dir)
@@ -426,15 +427,15 @@ class Backup():
   def restore_tarball(self, db_user = None, db_password = None, tarball = None):
     hosts = self.domainConnection.get_hosts()
     if db_user == None or db_password == None:
-      raise Error("You must specify db-user and db-password for the new database to restore it.")
+      raise nuodbTools.Error("You must specify db-user and db-password for the new database to restore it.")
     for host in hosts:
       if host['hostname'] == self.host:
         self.restorehost_id = host['id']
         if socket.gethostname() != self.host and ( self.ssh_username == None or self.ssh_keyfile == None): 
-          raise Error("When restoring to a host that is not local you must provide ssh credentials")
+          raise nuodbTools.Error("When restoring to a host that is not local you must provide ssh credentials")
         self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     if not hasattr(self, "restorehost"):
-      raise Error("No member of the domain found at %s" % self.host)
+      raise nuodbTools.Error("No member of the domain found at %s" % self.host)
     tempdir = "/".join([self.tarball_destination, "tmp", uuid.uuid4().__str__()])
     commands = ["mkdir -p %s" % tempdir]
     commands.append("tar -C %s -xvf %s" % (tempdir, tarball))
@@ -443,12 +444,12 @@ class Backup():
     for command in commands:
       r = self.restorehost.execute_command(command)
       if r[0] != 0:
-        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+        raise nuodbTools.Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
     metadata = json.loads(r[1])
     dbname = "_".join([self.database, str(int(metadata['t']))])
     self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
     if self.restoredb.exists:
-      raise Error("Database %s already exists in the domain. Cannot restore an already running database." % dbname)
+      raise nuodbTools.Error("Database %s already exists in the domain. Cannot restore an already running database." % dbname)
     archive_dir = "_".join([metadata['ad'], str(int(metadata['t']))])
     journal_dir = "_".join([metadata['jd'], str(int(metadata['t']))])
     # Need to find out what user is running nuodb to make the directories sane.
@@ -466,7 +467,7 @@ class Backup():
     for command in commands:
       r = self.restorehost.execute_command(command)
       if r[0] != 0:
-        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+        raise nuodbTools.Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = archive_dir, journal_dir = journal_dir)
     print "Starting TE..."
@@ -476,15 +477,15 @@ class Backup():
   def restore_zfs(self, db_user = None, db_password = None, snapshots = []):
     hosts = self.domainConnection.get_hosts()
     if db_user == None or db_password == None:
-      raise Error("You must specify db-user and db-password for the new database to restore it.")
+      raise nuodbTools.Error("You must specify db-user and db-password for the new database to restore it.")
     for host in hosts:
       if host['hostname'] == self.host:
         self.restorehost_id = host['id']
         if socket.gethostname() != self.host and ( self.ssh_username == None or self.ssh_keyfile == None): 
-          raise Error("When restoring to a host that is not local you must provide ssh credentials")
+          raise nuodbTools.Error("When restoring to a host that is not local you must provide ssh credentials")
         self.restorehost = nuodbTools.physical.Host(name = self.host, ssh_user = self.ssh_username, ssh_keyfile = self.ssh_keyfile)
     if not hasattr(self, "restorehost"):
-      raise Error("No member of the domain found at %s" % self.host)
+      raise nuodbTools.Error("No member of the domain found at %s" % self.host)
     commands = []
     dbname = ""
     restore_data = {}
@@ -506,7 +507,7 @@ class Backup():
     for command in commands:
       r = self.restorehost.execute_command(command)
       if r[0] != 0:
-        raise Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+        raise nuodbTools.Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
     self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = restore_data['archive_dir'], journal_dir = restore_data['journal_dir'])
@@ -538,13 +539,13 @@ class Backup():
           process_type = process['type']
     if process_exists:
       if len(self.db.get_processes(type=process_type)) <= 1 and not force:
-        raise Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.database))
+        raise nuodbTools.Error("Only one process available of type %s in database %s and no force flag given- will not kill the process" % (process_type, self.database))
       else:
         print "Stopping %s" % process_id
         self.db.stop_process(process_id)
         time.sleep(10)
     else:
-      raise Error("Process %s does not exist in this database" % process_id)
+      raise nuodbTools.Error("Process %s does not exist in this database" % process_id)
     
 class Error(Exception):
   pass
