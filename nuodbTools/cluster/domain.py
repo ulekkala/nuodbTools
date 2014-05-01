@@ -75,6 +75,8 @@ class Domain():
         headers = {"Accept": "application/json", "Content-type": "application/json"}
         if isinstance(data, dict) or isinstance(data, collections.OrderedDict):
           data_json = json.dumps(data)
+        else:
+          data_json = None
         urls_tried.append(url)
         try:
           if action == "POST":
