@@ -24,6 +24,7 @@ parser.add_argument("--comment", dest='comment', action='store', help="Human rea
 #parser.add_argument("--snapshot", dest='snapshot', action='store', help="AWS snapshot to recover from", default = None, required = False)
 parser.add_argument("--db-user", dest='db_user', action='store', help="RESTORE ONLY. The user for the restore DB TE", default = None, required = False)
 parser.add_argument("--db-password", dest='db_pass', action='store', help="RESTORE ONLY. The password for the restore DB TE", default = None, required = False)
+parser.add_argument("--debug", dest='debug', action='store_true', help="Enable debug mode. A lot of gibberish will be spit out.", required = False )
 args = parser.parse_args()
 
 ## Helpers
@@ -92,8 +93,8 @@ elif args.action == "restore":
 elif args.action == "list":
   for b in bu.backups:
     print "%s\t%s\t%s" % (b[0], ",".join(b[1]), b[2])
-    for key in b[3]:
-      print "\t- %s: %s" % (key, b[3][key])
+    if args.debug:
+      print json.dumps(b, indent="  ", separators="\n")
 else:
   print "Invalid action. Exiting."
   
