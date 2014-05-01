@@ -184,7 +184,7 @@ class Host:
       raise HostError("Cannot unmount %s as it is not an ebs volume mount on this machine." % mount_point)
     r = self.execute_command("sudo umount %s" % mount_point)
     if r[0] != 0:
-      raise HostError("Cannot unmount %s from the host %s: %s" % (mount_point, self.name, "\n".join([r[0], r[1]])))
+      raise HostError("Cannot unmount %s from the host %s: %s" % (mount_point, self.name, "\n".join([r[1], r[2]])))
     return self.ec2Connection.detach_volume(
                                      volume_id=mounts[mount_point]['ebs_volume'],
                                      instance_id = self.instance.id,

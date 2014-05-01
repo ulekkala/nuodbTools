@@ -94,7 +94,7 @@ elif args.action == "list":
   for b in bu.backups:
     print "%s\t%s\t%s" % (b[0], ",".join(b[1]), b[2])
     if args.debug:
-      print json.dumps(b, indent="  ", separators="\n")
+      print json.dumps(b, indent=4, sort_keys=True)
 else:
   print "Invalid action. Exiting."
   

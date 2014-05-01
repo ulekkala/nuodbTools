@@ -106,7 +106,6 @@ class Backup():
     else:
       journal = {"dir": archive['dir'], "type": "journal"}
     archive['mount'] = None
-    print self.backuphost.volume_mounts
     for mount in self.backuphost.volume_mounts:
       root_dir = __find_common_root_dir(mount, archive['dir'])
       if archive['mount'] == None or len(root_dir) > len(archive['mount']):
@@ -373,8 +372,12 @@ class Backup():
                 backups[t] = {"c": c, "s":[snapshot.rstrip()]}
             else:
               backups[t]["s"].append(snapshot.rstrip())
+            if 'd' not in backups[t]:
+              backups[t]['d'] = {}
+            for field in data:
+              backups[t]['d'][field] = data[field]
       for t in sorted(backups.keys(), cmp=reverse_numeric):
-        ret.append([backups[t]["c"], backups[t]["s"], "zfs", data])
+        ret.append([backups[t]["c"], backups[t]["s"], "zfs", backups[t]['d']])
     return ret
   
   def restore_ebs(self, db_user = None, db_password = None, snapshots = []):
@@ -495,16 +498,17 @@ class Backup():
       unpack = snapshot.split("nuo-")
       unpack[1] = unpack[1].rstrip().replace("_","=").replace(".","/").replace(":","+")
       data = json.loads(zlib.decompress(base64.b64decode(unpack[1])))
+      mount_point = data['m'] + "_%s" % str(int(data['t']))
       dbname = "_".join([data['db'], str(int(data['t']))])
       if "jd" in data:
         self.restoredb = "_".join([data['db'], str(int(data['t']))])
-        dir = "_".join([data['jd'], str(int(data['t']))])
-        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', dir)))
+        dir = re.sub(data['m'], mount_point, data['jd'])
+        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', mount_point)))
         restore_data['journal_dir'] = dir
       if "ad" in data:
         self.restoredb = "_".join([data['db'], str(int(data['t']))])
-        dir = "_".join([data['ad'], str(int(data['t']))])
-        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', dir)))
+        dir = re.sub(data['m'], mount_point, data['ad'])
+        commands.append("zfs clone %s %s" % (snapshot, re.sub(r'^/', '', mount_point)))
         restore_data['archive_dir'] = dir
     for command in commands:
       r = self.restorehost.execute_command(command)
