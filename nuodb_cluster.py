@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import unicodedata
 import urllib2
 
 def user_prompt(prompt, valid_choices = [], default = None):
@@ -71,10 +72,10 @@ def get_instance_type():
   filtered_instance_types = []
   for t in instance_types:
     if t[0] == "m" or t[0] == "t":
-      filtered_instance_types.append(type)
+      filtered_instance_types.append(t)
   suggested = None
   for idx, itype in enumerate(filtered_instance_types):
-    if itype == "m1.xlarge":
+    if itype == "m3.xlarge":
       suggested = idx
   result = choose_from_list(filtered_instance_types, suggested)
   return instance_types[result]
@@ -101,7 +102,7 @@ def get_zone_info(c):
       r[regionlist[get]] = {}
       i += 1
   # amazon has a ton of amis named the same thing. Choose the latest one. Only reliable way I can find is to scrape their wiki. Cache this.
-  page_cache = urllib2.urlopen("http://aws.amazon.com/amazon-linux-ami/").read()
+  page_cache = unicodedata.normalize("NFKD", unicode(urllib2.urlopen("http://aws.amazon.com/amazon-linux-ami/").read(), "utf-8"))
   for region in r:
     # Server count 
     r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1,20))
@@ -128,10 +129,10 @@ def get_zone_info(c):
    
     for ami in amis:
       if ami.architecture == "x86_64" and ami.description != None and len(ami.description) > 0 and "ami-" in ami.id and ami.platform != "windows":
-        if ami.owner_alias == "amazon" and ami.id in page_cache:
-          ami_dict["  ".join([ami.id, ami.description])] = {"id": ami.id, "location": ami.location}
-        elif ami.owner_alias != "amazon": 
-          ami_dict["  ".join([ami.id, ami.description])] = {"id": ami.id, "location": ami.location}
+        if ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache:
+          ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
+        elif ami.owner_alias.encode('utf8') != u"amazon": 
+          ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
     ami_descriptions = sorted(ami_dict.keys()) 
     ami_descriptions.append("NONE OF THE ABOVE")
     for idx, desc in enumerate(ami_descriptions):

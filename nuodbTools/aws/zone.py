@@ -5,9 +5,11 @@ class Zone:
     def __init__(self, name, vpc_id = None):
         self.name = name
         self.vpc_id = vpc_id
+        
     def connect(self, aws_access_key, aws_secret):
         self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
         return self.connection
+      
     def edit_security_group(self, name, description="EMPTY", rules=[]):
         errorstr = ""
         exists = False
@@ -27,20 +29,25 @@ class Zone:
           except:
             pass
         return securityGroup
+      
     def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip = None, src_group=None, dry_run=None):
       if src_group != None:
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, src_group = src_group)
       else:
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
+        
     @property
     def amis(self):
       if not hasattr(self, 'amis_cached'):
         self.amis_cached = self.connection.get_all_images(owners=["self", "802164393885", "amazon"])
       return self.amis_cached
+    
     def get_keys(self):
       return self.connection.get_all_key_pairs()
+    
     def get_security_groups(self):
       return self.connection.get_all_security_groups()
+    
     def get_subnets(self):
       subnets = {}
       networkinterfaces = self.connection.get_all_network_interfaces()
@@ -50,6 +57,7 @@ class Zone:
         for arg in networkinterface.__dict__:
           subnets[id][arg] = networkinterface.__dict__[arg]
       return subnets
+    
     @property
     def instances(self):
       instances = []
@@ -62,6 +70,11 @@ class Zone:
             i['name'] = ""
           instances.append(i)
       return instances
+    
+    @property
+    def instance_types(self):
+      return self.connection.get_all_instance_types()
+    
     @property
     def security_groups(self):
       return self.connection.get_security_groups()

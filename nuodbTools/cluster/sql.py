@@ -45,7 +45,7 @@ class sql():
         cursor.execute(command)
       if autocommit:
         cursor.execute("COMMIT")
-      if command.split(" ")[0] != "SELECT" or not associative:
+      if str(command.split(" ")[0]).lower() != "select" or not associative:
         if cursor._result_set != None:
           results = cursor.fetchall()
         else:

@@ -35,12 +35,23 @@ class Host:
 
     for reservation in self.ec2Connection.get_all_reservations():
       for instance in reservation.instances:
-        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and instance.state == 'running' or instance.state == 'pending':
+        if "Name" in instance.__dict__['tags'] and instance.__dict__['tags']['Name'] == name and (instance.state == 'running' or instance.state == 'pending'):
           self.exists = True
           self.instance = instance
           self.zone = instance._placement
-          self.update_data()         
-
+          self.update_data()
+    # If tagging doesn't work, try ssh'ing to the machine and getting the info.
+    if self.exists == False and self.is_port_available(22, self.name):
+      (r, stdout, stderr) = self.execute_command("curl http://169.254.169.254/latest/meta-data/instance-id")
+      if r == 0:
+        for reservation in self.ec2Connection.get_all_reservations():
+          for instance in reservation.instances:
+            if instance.id == stdout.strip():
+              self.exists = True
+              self.instance = instance
+              self.zone = instance._placement
+              self.update_data()
+        
   def agent_action(self, action):
     command = "sudo service nuoagent " + action
     (rc, stdout, stderr) = self.execute_command(command)
@@ -80,7 +91,7 @@ class Host:
     if not self.exists:
         raise HostError("Node does not exist")
     if mount_point in self.volume_mounts.keys() and force != True:
-      raise HostError("Mount point already has another mount on it.")
+      raise HostError("Mount point %s:%s already has another mount on it." % (self.name, mount_point))
     device = ""
     # find suitable device
     for letter in list(string.ascii_lowercase):
@@ -100,74 +111,90 @@ class Host:
         volume.update()
         time.sleep(1)
     if snapshot == None:
-     # if self.execute_command(" ".join(["which", "mkfs.xfs"]))[0] != 0:
-     #   self.execute_command(" ".join(["sudo", "yum", "-y install xfsprogs"]))
-      self.execute_command(" ".join(["sudo", "mkfs", "-t ext4", device]))
+      r = self.execute_command(" ".join(["sudo", "/sbin/mkfs", "-t ext4", device]))
+      if r[0] != 0:
+        raise HostError("Error formatting %s:%s %s" % (self.name, device, "\n".join([r[1], r[2]])))
     for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
         r = self.execute_command(command)
         if r[0] != 0:
-          return (False, r[1], r[2])
+          raise HostError("Error attaching %s to %s on %s: %s" % (device, mount_point, self.name, "\n".join([r[1], r[2]])))
     if mode != None:
       command = "sudo chmod %s %s" % (mode, mount_point)
       r = self.execute_command(command)
       if r[0] != 0:
-        return (False, r[1], r[2])
+        raise HostError("Error chmod %s to %s on %s: %s" % (mode, mount_point, self.name, "\n".join([r[1], r[2]])))
     if user != None:
       command = "sudo chown %s %s" % (user, mount_point)
       r = self.execute_command(command)
       if r[0] != 0:
-        return (False, r[1], r[2])
+        raise HostError("Error chown %s to %s on %s: %s" % (user, mount_point, self.name, "\n".join([r[1], r[2]])))
     if group != None:
       command = "sudo chgrp %s %s" % (group, mount_point)
       r = self.execute_command(command)
       if r[0] != 0:
-        return (False, r[1], r[2])
+        raise HostError("Error chgrp %s to %s on %s: %s" % (group, mount_point, self.name, "\n".join([r[1], r[2]])))
     command = "mount | grep " + mount_point
     r = self.execute_command(command)
     if r[0] != 0:
-      return (False, r[1], r[2])
+      raise HostError("Mount %s to %s can't be found on %s: %s. Unknown reason." % (device, mount_point, self.name))
     else:
-      return (True, r[1], r[2])
+      return (device, volume.id)
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
         if self.execute_command(command)[0] != 0:
                 return "Failed ssh execute on command " + command
-            
+  def copy(self, local_file, remote_file):    
+    if not hasattr(self, 'ssh_connection'):
+        self.__get_ssh_connection()
+    sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
+    sftp.put(local_file, remote_file)
+
   def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None, ebs_optimized = False):
-        if not self.exists:
-            if userdata != None:
-              self.userdata = userdata
-            interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
-            interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
-            if instance_type != "t1.micro" and self.ec2Connection.get_image(ami).root_device_type !='instance-store':
-              xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
-              xvdb.ephemeral_name = 'ephemeral0'
-              bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
-              bdm['/dev/xvdb'] = xvdb
-              reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm) 
-            else:
-              reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
-            self.exists = True
-            for instance in reservation.instances:
-                self.instance = instance
-                self.update_data()
-                self.zone = instance._placement
-                instance.add_tag("Name", self.name)
-            return self
-        else:
-            print("Node " + self.name + " already exists. Not starting again.")
-            self.update_data()
-            return self
+    if not self.exists:
+      if userdata != None:
+        self.userdata = userdata
+      interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
+      interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
+      if instance_type != "t1.micro" and self.ec2Connection.get_image(ami).root_device_type !='instance-store':
+        xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
+        xvdb.ephemeral_name = 'ephemeral0'
+        bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
+        bdm['/dev/xvdb'] = xvdb
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm) 
+      else:
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
+      self.exists = True
+      for instance in reservation.instances:
+        self.instance = instance
+        self.update_data()
+        self.zone = instance._placement
+        instance.add_tag("Name", self.name)
+      return self
+    else:
+      print("Node " + self.name + " already exists. Not starting again.")
+      self.update_data()
+      return self
   
   def detach_volume(self, mount_point, force = False):
-    pass
-  
+    mounts = self.volume_mounts
+    if mount_point not in mounts:
+      raise HostError("Cannot unmount %s as it is not a distinct mount on this machine." % mount_point)
+    if "ebs_volume" not in mounts[mount_point]:
+      raise HostError("Cannot unmount %s as it is not an ebs volume mount on this machine." % mount_point)
+    r = self.execute_command("sudo umount %s" % mount_point)
+    if r[0] != 0:
+      raise HostError("Cannot unmount %s from the host %s: %s" % (mount_point, self.name, "\n".join([r[0], r[1]])))
+    return self.ec2Connection.detach_volume(
+                                     volume_id=mounts[mount_point]['ebs_volume'],
+                                     instance_id = self.instance.id,
+                                     force = True)
+
   def dns_delete(self):
-        zone = self.Route53Connection.get_zone(self.dns_domain)
-        for fqdn in [self.name]:
-            if zone.find_records(fqdn, "A") != None:
-                zone.delete_a(fqdn)
+    zone = self.Route53Connection.get_zone(self.dns_domain)
+    for fqdn in [self.name]:
+      if zone.find_records(fqdn, "A") != None:
+        zone.delete_a(fqdn)
   
   def dns_set(self, type = "A", record = None, value = None, interface = "ext"):
         zone = self.Route53Connection.get_zone(self.dns_domain)
@@ -195,7 +222,18 @@ class Host:
               zone.update_a(fqdn, value=value, ttl=60)
             else:
               zone.add_a(fqdn, value=value)
-    
+  
+  def execute_command(self, command, nbytes = "99999"):
+    if not hasattr(self, 'ssh_connection'):
+      self.__get_ssh_connection()
+    channel = self.ssh_connection.get_transport().open_session()
+    channel.get_pty()
+    channel.exec_command(command)
+    exit_code = channel.recv_exit_status()
+    stdout = channel.recv(nbytes)
+    stderr = channel.recv_stderr(nbytes)
+    return (exit_code, stdout, stderr)
+  
   def __get_amazon_field(self, key, metadata_cmd):
     if len(key) == 0:
       raise HostError("Key length of zero! Should not be here")
@@ -270,64 +308,6 @@ class Host:
       return True
     else:
       return False
-    
-  def provision(self, peers=[], enableAutomation=False, enableAutomationBootstrap=False, templateFiles=["default.properties", "nuodb-frontend-api.yml", "webapp.properties"]):
-        if len(peers) > 0:
-            self.peers = peers
-        if enableAutomation != self.enableAutomation:
-            self.enableAutomation = enableAutomation
-        if enableAutomationBootstrap != self.enableAutomationBootstrap:
-            self.enableAutomationBootstrap = enableAutomationBootstrap
-        self.update_data()
-        self.copy(local_file="./templates/yum/nuodb.repo", remote_file="/tmp/nuodb.repo")
-        for command in [ 'sudo hostname ' + self.name, 'sudo mv /tmp/nuodb.repo /etc/yum.repos.d/', 'sudo yum -y install nuodb']:
-            if self.execute_command(command)[0] != 0:
-                return "Failed ssh execute on command " + command
-        properties = dict(
-            advertiseAlt=str(self.advertiseAlt).lower(),
-            agentPort=self.agentPort,
-            # altAddr=str(self.ext_fqdn),
-            altAddr=str(self.ext_ip),
-            domain=self.domain,
-            domainPassword=self.domainPassword,
-            enableAutomation=str(self.enableAutomation).lower(),
-            enableAutomationBootstrap=str(self.enableAutomationBootstrap).lower(),
-            isBroker=str(self.isBroker).lower(),
-            peers=",".join(self.peers),
-            portRange=self.portRange,
-            region=self.region
-            )
-        for templateFile in templateFiles:
-            templateContentFile = open("./templates/" + templateFile, "r")
-            props = string.Template(templateContentFile.read())
-            output = props.substitute(properties)
-            f = tempfile.NamedTemporaryFile()
-            f.write(str(output))
-            templateContentFile.close()
-            f.seek(0)
-            self.copy(f.name, "/tmp/" + templateFile)
-            f.close()
-            command = "sudo mv /tmp/" + templateFile + " /opt/nuodb/etc/" + templateFile
-            if self.execute_command(command)[0] != 0:
-                return "Failed ssh execute on command " + command
-        return "OK"      
-
-  def copy(self, local_file, remote_file):    
-        if not hasattr(self, 'ssh_connection'):
-            self.__get_ssh_connection()
-        sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
-        sftp.put(local_file, remote_file)
-
-  def execute_command(self, command, nbytes = "99999"):
-    if not hasattr(self, 'ssh_connection'):
-      self.__get_ssh_connection()
-    channel = self.ssh_connection.get_transport().open_session()
-    channel.get_pty()
-    channel.exec_command(command)
-    exit_code = channel.recv_exit_status()
-    stdout = channel.recv(nbytes)
-    stderr = channel.recv_stderr(nbytes)
-    return (exit_code, stdout, stderr)
       
   def status(self):
     try:
@@ -387,7 +367,7 @@ class Host:
           infra_devices[v.device] = v.id
           r = self.execute_command("readlink %s" % v.device)
           if r[0] == 0 and len(r[1]) > 0:
-            tgt = r[1].lstrip().rstrip()
+            tgt = r[1].strip()
             if tgt[0] != "/":
               tgt = "/".join([os.path.dirname(v.device), tgt])
             infra_devices[tgt] = v.id

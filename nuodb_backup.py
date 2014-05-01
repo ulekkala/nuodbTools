@@ -92,7 +92,8 @@ elif args.action == "restore":
 elif args.action == "list":
   for b in bu.backups:
     print "%s\t%s\t%s" % (b[0], ",".join(b[1]), b[2])
-    print json.dumps(b[3])
+    for key in b[3]:
+      print "\t- %s: %s" % (key, b[3][key])
 else:
   print "Invalid action. Exiting."
   

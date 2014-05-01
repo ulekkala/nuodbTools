@@ -67,6 +67,7 @@ class Backup():
         return "/"
       else:
         return "/".join(common)
+
     if self.database not in self.domainConnection.get_databases():
       raise nuodbTools.Error("Can not find database %s in domain provided" % self.database)
     sm_processes = self.db.get_processes(type="SM")
@@ -105,6 +106,7 @@ class Backup():
     else:
       journal = {"dir": archive['dir'], "type": "journal"}
     archive['mount'] = None
+    print self.backuphost.volume_mounts
     for mount in self.backuphost.volume_mounts:
       root_dir = __find_common_root_dir(mount, archive['dir'])
       if archive['mount'] == None or len(root_dir) > len(archive['mount']):
@@ -125,9 +127,10 @@ class Backup():
     notification = "Nada"
     if archive['mount'] == journal['mount']:
       print "Common nuodb_backup device is %s" % archive['mount']
-
       # AWS EBS supports snapshotting
-      if "ebs_volume" in archive['volume'] and self.backup_type in ["ebs", "auto", None]:
+      if self.backup_type == "ebs":
+        if "ebs_volume" not in archive['volume']:
+          raise Error("Could not determine the correct EBS volumes for backup")
         # This is an amazon EBS volume
         vol = archive
         vol['journal_dir'] = journal['dir']
@@ -139,7 +142,9 @@ class Backup():
                                  )
         notification = "Created an EBS nuodb_backup of %s with snapshot id %s" % (self.database, name[1])
       # So does a zfs volume
-      elif archive['volume']['type'] == "zfs" and self.backup_type in ["zfs", "auto", None]:
+      elif self.backup_type == "zfs":
+        if archive['volume']['type'] != "zfs":
+          raise Error("Could not determine the correct ZFS information for backup")
         backup = self.__backup_zfs(directory = archive['dir'], device = archive['volume']['dev'], host = self.backuphost)
         if backup[0]:
           notification =  backup[1]+ "\n"
@@ -411,11 +416,9 @@ class Backup():
     for mount in mounts:
       print "Mounting %s" % mount['mount']
       try:
-        r = self.restorehost.attach_volume(size= mount['size'], mount_point = mount['mount'], snapshot = mount['snap'])
-        if r[0] != True:
-          raise nuodbTools.Error("Error trying to attach volume on %s from snapshot %s: %s" % (mount['mount'], mount['snap'], r[2]))
+        self.restorehost.attach_volume(size= mount['size'], mount_point = mount['mount'], snapshot = mount['snap'])
       except nuodbTools.cluster.backup.Error, e:
-       print e
+        raise nuodbTools.Error("Error trying to attach volume on %s from snapshot %s: %s" % (mount['mount'], mount['snap'], e))
     
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost, archive_dir = archive_dir, journal_dir = journal_dir)

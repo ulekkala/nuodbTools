@@ -110,7 +110,7 @@ class Cluster:
                                              isBroker = isBroker, ssh_key = self.ssh_key, ssh_keyfile = self.ssh_keyfile)
       return host
 
-    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False, ebs_optimized = True):
+    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False, ebs_optimized = False):
       if instance_type == None:
         instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
