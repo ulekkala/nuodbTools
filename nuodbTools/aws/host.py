@@ -197,31 +197,31 @@ class Host:
         zone.delete_a(fqdn)
   
   def dns_set(self, type = "A", record = None, value = None, interface = "ext"):
-        zone = self.Route53Connection.get_zone(self.dns_domain)
-        if record != None:
-          records = {record: value}.iteritems()
+    zone = self.Route53Connection.get_zone(self.dns_domain)
+    if record != None:
+      records = {record: value}.iteritems()
+    else:
+      while self.int_ip == None or self.ext_ip == None or len(self.int_ip) == 0 or len(self.ext_ip) == 0:
+        self.update_data()
+        print "Waiting for IPs..."
+        time.sleep(5)
+      if interface == "ext":
+        records = {self.name: self.ext_ip}.iteritems()
+      else:
+        records = {self.name: self.int_ip}.iteritems()
+    for fqdn, value in records:
+      if type == "TXT":
+        pass
+      elif type == "CNAME":
+        if zone.find_records(fqdn, "CNAME") != None:
+          zone.update_cname(fqdn, value=value, ttl=60)
         else:
-          while self.int_ip == None or self.ext_ip == None or len(self.int_ip) == 0 or len(self.ext_ip) == 0:
-            self.update_data()
-            print "Waiting for IPs..."
-            time.sleep(5)
-          if interface == "ext":
-            records = {self.name: self.ext_ip}.iteritems()
-          else:
-            records = {self.name: self.int_ip}.iteritems()
-        for fqdn, value in records:
-          if type == "TXT":
-            pass
-          elif type == "CNAME":
-            if zone.find_records(fqdn, "CNAME") != None:
-              zone.update_cname(fqdn, value=value, ttl=60)
-            else:
-              zone.add_cname(fqdn, value=value)
-          else:
-            if zone.find_records(fqdn, "A") != None:
-              zone.update_a(fqdn, value=value, ttl=60)
-            else:
-              zone.add_a(fqdn, value=value)
+          zone.add_cname(fqdn, value=value)
+      else:
+        if zone.find_records(fqdn, "A") != None:
+          zone.update_a(fqdn, value=value, ttl=60)
+        else:
+          zone.add_a(fqdn, value=value)
   
   def execute_command(self, command, nbytes = "99999"):
     if not hasattr(self, 'ssh_connection'):
@@ -294,12 +294,15 @@ class Host:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(2)
     #print "Testing " + ip + ":" + str(port)
-    result = s.connect_ex((ip, port))
-    #print result
-    s.close()
-    if result == 0:
-      return True
-    else:
+    try:
+      result = s.connect_ex((ip, port))
+      #print result
+      s.close()
+      if result == 0:
+        return True
+      else:
+        return False
+    except:
       return False
   
   def path_exists(self, path, test = "d"):
@@ -365,6 +368,9 @@ class Host:
         v = volume.attach_data
         if v.status == "attached" and v.instance_id== self.instance.id:
           infra_devices[v.device] = v.id
+          # make a duplicate entry if *s*dx to *xv*dx because of kernel device reporting issues
+          if "/dev/sd" in v.device:
+            infra_devices[v.device.replace("/dev/sd", "/dev/xvd")] = v.id
           r = self.execute_command("readlink %s" % v.device)
           if r[0] == 0 and len(r[1]) > 0:
             tgt = r[1].strip()

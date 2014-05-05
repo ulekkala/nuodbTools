@@ -1,4 +1,5 @@
 import boto.ec2
+import boto.vpc
 import traceback
 
 class Zone:
@@ -7,8 +8,10 @@ class Zone:
         self.vpc_id = vpc_id
         
     def connect(self, aws_access_key, aws_secret):
-        self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
-        return self.connection
+      self.aws_access_key = aws_access_key
+      self.aws_secret = aws_secret
+      self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
+      return self.connection
       
     def edit_security_group(self, name, description="EMPTY", rules=[]):
         errorstr = ""
@@ -50,12 +53,9 @@ class Zone:
     
     def get_subnets(self):
       subnets = {}
-      networkinterfaces = self.connection.get_all_network_interfaces()
-      for networkinterface in networkinterfaces:
-        id = networkinterface.subnet_id
-        subnets[id] = {}
-        for arg in networkinterface.__dict__:
-          subnets[id][arg] = networkinterface.__dict__[arg]
+      vpc_conn = boto.vpc.VPCConnection(aws_access_key_id=self.aws_access_key, aws_secret_access_key=self.aws_secret, region=boto.ec2.get_region(self.name))
+      for subnet in vpc_conn.get_all_subnets():
+        subnets[subnet.id] = subnet.__dict__
       return subnets
     
     @property

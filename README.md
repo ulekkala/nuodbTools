@@ -1,11 +1,11 @@
 
-[NuoDB](http://www.nuodb.com) Tools
+[NuoDB](http://www.nuodb.com) Quickstart
 ===========
-## Quckstart
-* If this is your first database and you want to get up and running you have a few options (in order of complexity):
+## Getting started
+* If this is your first database and you want to try out NuoDB you have a few options (in order of complexity):
   * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
   * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef#vagrant)
-  * [Create a NuoDB cluster in Amazon](nuodb_cluster.md)
+  * [Create a NuoDB multiple region cluster in Amazon](nuodb_cluster.md)
 * Once you have a running database you can take advantage of the tools provided in this package
 
 ## What are the tools provided?

@@ -25,11 +25,15 @@ class Backup():
                domainConnection = None, ec2Connection = None, 
                rest_username=None, rest_password=None, rest_url=None, 
                ssh_username=None, ssh_keyfile=None, 
-               tarball_destination = None, backup_type = None):
+               tarball_destination = None, backup_type = None,
+               debug = False):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
+    self.debug = debug
     for i in args:
       setattr(self, i, values[i])
-      
+      if self.debug:
+        print "DEBUG: %s = %s" % (i, values[i])
+  
     if backup_type == None:
       raise nuodbTools.Error("You must specify a --backup-type: ebs, zfs, tarball.")
     if backup_type == "tarball" and tarball_destination == None:
@@ -106,6 +110,11 @@ class Backup():
     else:
       journal = {"dir": archive['dir'], "type": "journal"}
     archive['mount'] = None
+    
+    if self.debug:
+      print "DEBUG: %s volume mounts" % self.backuphost.name
+      print json.dumps(self.backuphost.volume_mounts, indent=2)
+      
     for mount in self.backuphost.volume_mounts:
       root_dir = __find_common_root_dir(mount, archive['dir'])
       if archive['mount'] == None or len(root_dir) > len(archive['mount']):
@@ -121,6 +130,14 @@ class Backup():
     journal['volume'] = self.backuphost.volume_mounts[journal['mount']]
     print "Archive on %s of type %s" % (archive['mount'], archive['volume']['type'])
     print "Journal on %s of type %s" % (journal['mount'], journal['volume']['type'])
+    if self.debug:
+      print
+      print "DEBUG: Archive info"
+      print json.dumps(archive, indent=2)
+      print "DEBUG: Journal info"
+      print json.dumps(journal, indent=2)
+      print
+      
     # We have 2 kinds of backups, online and offline.
     # Online can be done when the mounts are the same and the mount supports file system snapshotting
     notification = "Nada"

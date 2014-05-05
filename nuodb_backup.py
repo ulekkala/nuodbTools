@@ -24,7 +24,7 @@ parser.add_argument("--comment", dest='comment', action='store', help="Human rea
 #parser.add_argument("--snapshot", dest='snapshot', action='store', help="AWS snapshot to recover from", default = None, required = False)
 parser.add_argument("--db-user", dest='db_user', action='store', help="RESTORE ONLY. The user for the restore DB TE", default = None, required = False)
 parser.add_argument("--db-password", dest='db_pass', action='store', help="RESTORE ONLY. The password for the restore DB TE", default = None, required = False)
-parser.add_argument("--debug", dest='debug', action='store_true', help="Enable debug mode. A lot of gibberish will be spit out.", required = False )
+parser.add_argument("--debug", dest='debug', action='store_true', help="Enable debug mode. A lot of gibberish will be spit out.", default = False, required = False )
 args = parser.parse_args()
 
 ## Helpers
@@ -69,7 +69,8 @@ bu = nuodbTools.cluster.Backup(database = args.database, host = args.host,
                                      aws_region = args.aws_region, rest_url = args.rest_url, 
                                      rest_username = args.rest_username, rest_password = args.rest_password, 
                                      ssh_username = args.ssh_username, ssh_keyfile = args.ssh_keyfile,
-                                     backup_type = args.backup_type, tarball_destination = args.tarball_destination
+                                     backup_type = args.backup_type, tarball_destination = args.tarball_destination,
+                                     debug = args.debug
                                      )
 if args.action == "backup":
   if args.comment != None and len(args.comment) > 0:
