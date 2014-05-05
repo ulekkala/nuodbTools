@@ -90,7 +90,7 @@ def get_zone_info(c):
   
   if zone_count == len(available_zones):
     for zone in available_zones:
-      r[zone] = {}
+      r[zone.name] = {}
   else:
     i = 0
     while i < int(zone_count):
@@ -132,9 +132,9 @@ def get_zone_info(c):
    
     for ami in amis:
       if ami.architecture == "x86_64" and ami.description != None and len(ami.description) > 0 and "ami-" in ami.id and ami.platform != "windows":
-        if ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache:
+        if ami.owner_alias != None and ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache:
           ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
-        elif ami.owner_alias.encode('utf8') != u"amazon": 
+        elif ami.owner_alias != None and ami.owner_alias.encode('utf8') != u"amazon": 
           ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
     ami_descriptions = sorted(ami_dict.keys()) 
     ami_descriptions.append("NONE OF THE ABOVE")
