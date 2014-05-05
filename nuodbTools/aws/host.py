@@ -92,32 +92,49 @@ class Host:
         raise HostError("Node does not exist")
     if mount_point in self.volume_mounts.keys() and force != True:
       raise HostError("Mount point %s:%s already has another mount on it." % (self.name, mount_point))
-    device = ""
+    reported_device = ""
+    actual_device = ""
     # find suitable device
+    command = "ls /dev | grep xvd"
+    if self.execute_command(command)[0] > 0:
+      base_device_letters = "sd"
+    else:
+      base_device_letters = "xvd"
     for letter in list(string.ascii_lowercase):
-        if len(device) == 0:
-            command = "ls /dev | grep sd" + letter
-            if self.execute_command(command)[0] > 0:
-                device = "/".join(["", "dev", "sd" + letter])
-    if len(device) == 0:
-        raise HostError("Could not find a suitable device for mounting")
+      if len(actual_device) == 0:
+        command = "ls /dev | grep %s" % base_device_letters + letter
+        if self.execute_command(command)[0] > 0:
+          actual_device = "/".join(["", "dev", base_device_letters + letter])
+          # Amazon still treats devices as "sdx" when they are "xvdx" therefore reported device is different.
+          reported_device = "/".join(["", "dev", "sd" + letter])
+    if len(actual_device) == 0:
+      raise HostError("Could not find a suitable device for mounting")
     volume = self.ec2Connection.create_volume(size, self.zone, snapshot = snapshot)
-    volume.add_tag("Name", ":".join([device, mount_point]))
+    volume.add_tag("Name", ":".join([actual_device, mount_point]))
     while volume.status != "available":
         volume.update()
         time.sleep(1)
-    self.ec2Connection.attach_volume(volume.id, self.instance.id, device)
+    self.ec2Connection.attach_volume(volume.id, self.instance.id, reported_device)
     while volume.attachment_state() != "attached":
         volume.update()
         time.sleep(1)
     if snapshot == None:
-      r = self.execute_command(" ".join(["sudo", "/sbin/mkfs", "-t ext4", device]))
+      r = self.execute_command(" ".join(["sudo", "/sbin/mkfs", "-t ext4", actual_device]))
       if r[0] != 0:
-        raise HostError("Error formatting %s:%s %s" % (self.name, device, "\n".join([r[1], r[2]])))
-    for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", device, mount_point])]:
+        raise HostError("Error formatting %s:%s %s" % (self.name, actual_device, "\n".join([r[1], r[2]])))
+    else:
+      filesystem = self.execute_command("file -sL %s" % actual_device)[1]
+      if " XFS " in filesystem:
+        print "%s is XFS" % actual_device
+        commands = ["sudo xfs_repair -L %s" % actual_device, "sudo xfs_admin -U generate %s" % actual_device]
+        for command in commands:
+          r = self.execute_command(command)
+          if r[0] != 0:
+            raise HostError("Error attaching %s to %s on %s. When preparing XFS volume for mount with command '%s' got %s" % (actual_device, mount_point, self.name, command, r[2]))
+    for command in ["sudo mkdir -p " + mount_point, " ".join(["sudo", "mount", actual_device, mount_point])]:
         r = self.execute_command(command)
         if r[0] != 0:
-          raise HostError("Error attaching %s to %s on %s: %s" % (device, mount_point, self.name, "\n".join([r[1], r[2]])))
+          raise HostError("Error attaching %s to %s on %s: %s" % (actual_device, mount_point, self.name, "\n".join([r[1], r[2]])))
     if mode != None:
       command = "sudo chmod %s %s" % (mode, mount_point)
       r = self.execute_command(command)
@@ -136,9 +153,9 @@ class Host:
     command = "mount | grep " + mount_point
     r = self.execute_command(command)
     if r[0] != 0:
-      raise HostError("Mount %s to %s can't be found on %s: %s. Unknown reason." % (device, mount_point, self.name))
+      raise HostError("Mount %s to %s can't be found on %s: %s. Unknown reason." % (actual_device, mount_point, self.name))
     else:
-      return (device, volume.id)
+      return (actual_device, volume.id)
         
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
