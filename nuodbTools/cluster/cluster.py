@@ -90,7 +90,10 @@ class Cluster:
         chef_data["nuodb"]['automationTemplate'] = "Minimally Redundant"
         chef_data["nuodb"]['altAddr'] = "" # Populate this at boot time
         chef_data["nuodb"]['region'] = zone
-        chef_data["nuodb"]['monitoring'] = {"enable": True, "alert_email": self.alert_email}
+        if self.alert_email != None and "@" in self.alert_email:
+          chef_data["nuodb"]['monitoring'] = {"enable": True, "alert_email": self.alert_email}
+        else:
+          chef_data["nuodb"]['monitoring'] = {"enable": False, "alert_email": ""}
         chef_data['nuodb']['license'] = self.nuodb_license
         chef_data["nuodb"]['domain_name'] = self.domain_name
         chef_data["nuodb"]['domain_password'] = self.domain_password
