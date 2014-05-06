@@ -277,7 +277,7 @@ class Cluster:
         while not host.is_port_available(22):
           print ("."),
           time.sleep(5)
-        print
+        print ("Setting /etc/hosts on %s..." % host.name)
         for line in host_list:
           hostname = line[0]
           ip = line[1]
@@ -285,6 +285,7 @@ class Cluster:
           (rc, stdout, stderr) = host.execute_command(command)
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
+        print "Restarting services..."
         host.agent_action(action = "restart")
         host.webconsole_action(action = "restart")
       
