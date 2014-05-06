@@ -345,7 +345,9 @@ class Backup():
                 backups[t] = {"c": c, "s":[s.id]}
               else:
                 backups[t]["s"].append(s.id)
-              backups[t]["d"] = data
+              if 'd' not in backups[t]:
+                backups[t]["d"] = []
+              backups[t]['d'].append({s.id: data})
           except Error, e:
             print e
       for t in sorted(backups.keys(), cmp=reverse_numeric):
@@ -389,10 +391,12 @@ class Backup():
                 backups[t] = {"c": c, "s":[snapshot.rstrip()]}
             else:
               backups[t]["s"].append(snapshot.rstrip())
+            data_obj = {}
             if 'd' not in backups[t]:
-              backups[t]['d'] = {}
+              backups[t]['d'] = []
             for field in data:
-              backups[t]['d'][field] = data[field]
+              data_obj[field] = data[field]
+            backups[t]['d'].append({snapshot.rstrip(): data_obj})
       for t in sorted(backups.keys(), cmp=reverse_numeric):
         ret.append([backups[t]["c"], backups[t]["s"], "zfs", backups[t]['d']])
     return ret
@@ -439,11 +443,17 @@ class Backup():
         self.restorehost.attach_volume(size= mount['size'], mount_point = mount['mount'], snapshot = mount['snap'])
       except nuodbTools.cluster.backup.Error, e:
         raise nuodbTools.Error("Error trying to attach volume on %s from snapshot %s: %s" % (mount['mount'], mount['snap'], e))
-    
+    self.__start_minimum_processes(database= self.restoredb, host_id = self.restorehost_id, archive_dir = archive_dir, journal_dir = journal_dir, db_user = db_user, db_password =  db_password)
+    '''
+    print "Checking archive %s for errors..." % archive_dir
+    r = self.restorehost.execute_command("/opt/nuodb/bin/nuochk %s" % archive_dir)
+    if r[0] != 0:
+      raise nuodbTools.Error("Integrity check of archive %s failed. Backup is probably corrupt: %s" % (archive_dir, r[2]))
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost, archive_dir = archive_dir, journal_dir = journal_dir)
     print "Starting TE..."
     self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost, user = db_user, password = db_password)
+    '''
     print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
       
   def restore_tarball(self, db_user = None, db_password = None, tarball = None):
@@ -490,10 +500,13 @@ class Backup():
       r = self.restorehost.execute_command(command)
       if r[0] != 0:
         raise nuodbTools.Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
+    self.__start_minimum_processes(database= self.restoredb, host_id = self.restorehost_id, archive_dir = archive_dir, journal_dir = journal_dir, db_user = db_user, db_password =  db_password)
+    '''
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = archive_dir, journal_dir = journal_dir)
     print "Starting TE..."
     self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost_id, user = db_user, password = db_password)
+    '''
     print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
   
   def restore_zfs(self, db_user = None, db_password = None, snapshots = []):
@@ -532,12 +545,43 @@ class Backup():
       if r[0] != 0:
         raise nuodbTools.Error("Got non-zero response when executing command %s: %s" % (command, " ".join([r[1], r[2]])))
     self.restoredb = nuodbTools.cluster.Database(name=dbname, domain = self.domainConnection)
+    self.__start_minimum_processes(database= self.restoredb, host_id = self.restorehost_id, archive_dir = restore_data['archive_dir'], journal_dir = restore_data['journal_dir'], db_user = db_user, db_password =  db_password)
+    '''
     print "Starting SM..."
     self.start_process(database = self.restoredb, processtype = "SM", host = self.restorehost_id, archive_dir = restore_data['archive_dir'], journal_dir = restore_data['journal_dir'])
     print "Starting TE..."
     self.start_process(database = self.restoredb, processtype = "TE", host = self.restorehost_id, user = db_user, password = db_password)
+    '''
     print "Restored database to \"%s\" on %s" % (dbname, self.restorehost.name)
 
+  def __start_minimum_processes(self, database, host_id, archive_dir, journal_dir, db_user, db_password):
+    print "Checking archive %s for errors..." % archive_dir
+    r = self.restorehost.execute_command("/opt/nuodb/bin/nuochk %s" % archive_dir)
+    if r[0] != 0:
+      raise nuodbTools.Error("Integrity check of archive %s failed. Backup is probably corrupt: %s" % (archive_dir, r[2]))
+    print "Starting SM..."
+    # try to start SM and ignore if it fails. Rest can throw false negatives.
+    try:
+      self.start_process(database = database, processtype = "SM", host = host_id, archive_dir = archive_dir, journal_dir = journal_dir)
+    except:
+      pass
+    sm_ok = False
+    tries = 0
+    max_tries = 10
+    sleep= 6
+    while not sm_ok and tries < max_tries:
+      for process in database.processes:
+        if self.debug:
+          print process
+        if process['status'].lower() == "running" and process['type'].lower() =="sm":
+          sm_ok = True
+      tries += 1
+      time.sleep(sleep)
+    if tries == max_tries:
+      raise nuodbTools.Error("Timed out waiting for an SM to start for database %s. Waited %s seconds." % (database.name, str(max_tries*sleep)))
+    print "Starting TE..."
+    self.start_process(database = database, processtype = "TE", host = host_id, user = db_user, password = db_password)
+    
   def start_process(self, database, processtype="SM", host = None, archive_dir= None, journal_dir = None, user = None, password = None):
     if isinstance(host, nuodbTools.aws.Host):
       host_id = self.domainConnection.get_host_id(host.name)
