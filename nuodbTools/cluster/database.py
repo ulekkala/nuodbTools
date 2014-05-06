@@ -52,9 +52,11 @@ class Database():
       return processes
     
     @property
-    def processes(self):
-      data = self.domain.rest_req("GET", "/".join(["databases", self.name]))
-      return data["processes"]
+    def processes(self): 
+      for db in self.domain.rest_req("GET", "/databases"):
+        if "name" in db and db['name'] == self.name:
+          return db["processes"]
+      return []
       
     def start_process(self, processtype = "SM", host_id = None, archive = None, journal = None, initialize = False, user = None, password = None):
       # curl -X POST -H "Accept: application/json" -H "Content-type: application/json" -u domain:bird -d '{ "type": "TE", "dbname": "foo", "options": {"--dba-user": "dba", "--dba-password": "goalie" } }' http://localhost:8888/api/processes
