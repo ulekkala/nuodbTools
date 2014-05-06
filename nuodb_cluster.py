@@ -1,5 +1,13 @@
 #!/usr/bin/python
 
+description="""
+NuoDB AWS cluster quickstart\n
+============================\n
+This script creates a multiregion sandbox cluster of a given number of nodes in AWS EC2.\n
+This script is not recommended for production use.
+"""
+
+import argparse
 import nuodbTools.aws
 import nuodbTools.cluster
 import json
@@ -199,13 +207,8 @@ def get_zone_info(c):
         
   return r 
 
-#### Create a cluster
-
-def help():
-  print "%s create" % sys.argv[0]
-  print "%s terminate" % sys.argv[0]
   
-def __main__(action = None):
+def __main__(action = None, ebs_optimized = False):
   config_file = "./config.json"
   params = {
             "cluster_name": { "default" : "mycluster", "prompt" : "What is the name of your cluster?"},
@@ -312,7 +315,7 @@ def __main__(action = None):
         print "Added %s" % myserver
     
     print "Booting the cluster"
-    mycluster.create_cluster() # Actually spins up the nodes.
+    mycluster.create_cluster(ebs_optimized = ebs_optimized) # Actually spins up the nodes.
     print "Cluster has started up. Here are your brokers:"
     for broker in mycluster.get_brokers():
       print broker
@@ -378,9 +381,10 @@ def __main__(action = None):
   else:
     help()
 
-args = sys.argv
-if len(args) < 2:
-  res = user_prompt("What action do you want to take on the cluster? (create/terminate): ", ["create", "terminate"])
-  __main__(action=res)
-else:
-  __main__(action=args[1])
+sys.stdout=nuodbTools.cluster.Unbuffered(sys.stdout)
+parser = argparse.ArgumentParser(description=description)
+parser.add_argument("-a", "--action", dest='action', action='store', help="What action should be take on the cluster",  choices=["create", "terminate"], required = True )
+parser.add_argument("--ebs-optimized", dest='ebs_optimized', action='store_true', help="Use ebs-optimized instances", default = False, required = False )
+args = parser.parse_args()
+
+__main__(action=args.action, ebs_optimized=args.ebs_optimized)

@@ -166,7 +166,7 @@ class Cluster:
       if zone not in self.db['customers'][self.cluster_name]['zones']:
         self.db['customers'][self.cluster_name]['zones'][zone] = {"hosts": {}, "brokers": []}
         
-    def create_cluster(self):
+    def create_cluster(self, ebs_optimized = False):
       for host in self.get_hosts():
         obj = self.get_host(host)
         zone = obj.region
@@ -187,7 +187,7 @@ class Cluster:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
-        self.__boot_host(host, zone, wait_for_health = wait_for_health)
+        self.__boot_host(host, zone, wait_for_health = wait_for_health, ebs_optimized = ebs_optimized)
       if self.dns_emulate:
         self.set_dns_emulation()
 
@@ -308,4 +308,13 @@ class Cluster:
      
 class Error(Exception):
   pass 
-        
+
+class Unbuffered(object):
+  def __init__(self, stream):
+    self.stream = stream
+  def write(self, data):
+    self.stream.write(data)
+    self.stream.flush()
+  def __getattr__(self, attr):
+    return getattr(self.stream, attr)
+
