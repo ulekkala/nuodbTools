@@ -86,7 +86,7 @@ def get_instance_type():
     if itype == "m3.xlarge":
       suggested = idx
   result = choose_from_list(filtered_instance_types, suggested)
-  return instance_types[result]
+  return filtered_instance_types[result]
   
 def get_zone_info(c):
   # Find our how many regions
