@@ -140,7 +140,7 @@ class Cluster:
         count = 0
         tries = 60
         wait = 10
-        print "Waiting for agent on %s " % obj.name
+        print "Waiting for agent on %s (%s)" % (obj.name, obj.ext_ip)
         while not healthy or count == tries:
           if obj.agent_running():
             healthy = True
