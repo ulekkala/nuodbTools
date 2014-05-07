@@ -56,7 +56,7 @@ class Host:
     command = "sudo service nuoagent " + action
     (rc, stdout, stderr) = self.execute_command(command)
     if rc != 0:
-      raise HostError("Failed to %s nuoagent with command %s: %s" % (action, command, stderr))
+      raise HostError("Failed to %s nuoagent with command '%s': %s" % (action, command, stdout + stderr))
     
   def agent_running(self, ip = None):
     while ip == None:
