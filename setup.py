@@ -9,11 +9,10 @@ if v[0] == 2 and v[1] == 7:
         url='http://github.com/nuodb/nuodbTools',
         author='NuoDB Inc.',
         author_email='info@nuodb.com',
-        data_files=[('nuodbTools/cluster/templates', ['nuodbTools/cluster/templates/init.py'])],
         install_requires=["boto", "paramiko", "pynuodb", "requests"], 
         license='BSD licence, see LICENCE.txt',
-        packages=['nuodbTools', 'nuodbTools.aws', 'nuodbTools.cluster', 'nuodbTools.physical'],
-        scripts=["nuodb_backup.py", "nuodb_aws_quickstart.py", "nuodb_load.py", "nuodb_tarball_installer.py"],
+        packages=['nuodbTools'],
+        scripts=["nuodb_backup.py", "nuodb_cluster.py", "nuodb_load.py", "nuodb_tarball_installer.py"],
         zip_safe=False)
 else:
   print "The nuodbTools module and some of its dependencies only work on Python version 2.7. Detected %s. Cannot continue." % ".".join(str(e) for e in v[0:2])
