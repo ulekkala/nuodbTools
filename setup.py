@@ -9,9 +9,10 @@ if v[0] == 2 and v[1] == 7:
         url='http://github.com/nuodb/nuodbTools',
         author='NuoDB Inc.',
         author_email='info@nuodb.com',
-        install_requires=["boto", "paramiko", "pynuodb", "requests"], 
+        data_files=[('nuodbTools/cluster/templates', ['nuodbTools/cluster/templates/init.py'])],
+        install_requires=["boto", "paramiko", "pynuodb", "requests"],
         license='BSD licence, see LICENCE.txt',
-        packages=['nuodbTools'],
+        packages=['nuodbTools', 'nuodbTools.aws', 'nuodbTools.cluster', 'nuodbTools.physical'],
         scripts=["nuodb_backup.py", "nuodb_cluster.py", "nuodb_load.py", "nuodb_tarball_installer.py"],
         zip_safe=False)
 else:
