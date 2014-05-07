@@ -208,8 +208,7 @@ def get_zone_info(c):
   return r 
 
   
-def __main__(action = None, ebs_optimized = False):
-  config_file = "./config.json"
+def __main__(action = None, config_file = None, debug = False, ebs_optimized = False):
   params = {
             "cluster_name": { "default" : "mycluster", "prompt" : "What is the name of your cluster?"},
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?"},
@@ -227,73 +226,98 @@ def __main__(action = None, ebs_optimized = False):
   if action == "create":
     #### Gather all the data we need
     c = {}
-    if os.path.exists(config_file):
+    static_config = {}
+    if config_file == None:
+      if os.path.exists("./config.json"): 
+        with open("./config.json") as f:
+          static_config = json.loads(f.read())
+        f.close()
+    elif os.path.exists(config_file):
+      print "Using configuration from %s" % config_file
       with open(config_file) as f:
         static_config = json.loads(f.read())
         f.close()
-    else:
-      static_config = {}
       
     for key in static_config:
       if key in params:
         params[key]['default'] = static_config[key]
     
-    for key in sorted(params.keys()):
-      #if len(str(params[key]['default'])) > 30:
-      #  default = str(params[key]['default'])[0:27] + "..."
-      #else:
-      default = str(params[key]['default'])
-      val = raw_input("%s [%s] " % (params[key]['prompt'], default))
-      if len(val) == 0:
-        c[key] = params[key]['default']
-      else:
-        c[key] = val
-        
-    #### test for ssh key
-    if not os.path.exists(c['ssh_keyfile']):
-      print "Cannot find ssh private key %s. Please check and run again." % c['ssh_keyfile']
-      exit(2)
-
-    #### Get Instance type
-    if "instance_type" not in static_config:
-      c['instance_type'] = get_instance_type()
-    else:
-      res = user_prompt("Use the instance type of %s? (y/n) " % static_config['instance_type'], ["y", "n"])
-      if res != "y":
+    if config_file == None:
+      # If the customer doesn't give us a config file prompt for everything
+      for key in sorted(params.keys()):
+        #if len(str(params[key]['default'])) > 30:
+        #  default = str(params[key]['default'])[0:27] + "..."
+        #else:
+        default = str(params[key]['default'])
+        val = raw_input("%s [%s] " % (params[key]['prompt'], default))
+        if len(val) == 0:
+          c[key] = params[key]['default']
+        elif len(val.strip()) == 0:
+          c[key] = None
+        else:
+          c[key] = val
+          
+      #### test for ssh key
+      if not os.path.exists(c['ssh_keyfile']):
+        print "Cannot find ssh private key %s. Please check and run again." % c['ssh_keyfile']
+        exit(2)
+  
+      #### Get Instance type
+      if "instance_type" not in static_config:
         c['instance_type'] = get_instance_type()
       else:
-        c['instance_type'] = static_config['instance_type']
-    
-    ### Populate zone data
-    if "zones" in static_config:
-      print "Found this zone info:"
-      for zone in sorted(static_config["zones"].keys()):
-        s = static_config["zones"][zone]
-        print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
-      res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
-      if res == "y":
-        c['zones'] = static_config["zones"]
+        res = user_prompt("Use the instance type of %s? (y/n) " % static_config['instance_type'], ["y", "n"])
+        if res != "y":
+          c['instance_type'] = get_instance_type()
+        else:
+          c['instance_type'] = static_config['instance_type']
+      
+      ### Populate zone data
+      if "zones" in static_config:
+        print "Found this zone info:"
+        for zone in sorted(static_config["zones"].keys()):
+          s = static_config["zones"][zone]
+          print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+        res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
+        if res == "y":
+          c['zones'] = static_config["zones"]
+        else:
+          while res != "y":
+            c["zones"] = get_zone_info(c)
+            for zone in sorted(c["zones"].keys()):
+              s = c["zones"][zone]
+              print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+            res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
       else:
+        res = "n"
         while res != "y":
           c["zones"] = get_zone_info(c)
+          print "Here is your zone info:"
           for zone in sorted(c["zones"].keys()):
             s = c["zones"][zone]
             print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
           res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
+        
+      # Write out the config
+      with open("./config.json", 'wt') as f:
+        f.write(json.dumps(c, indent=4, sort_keys=True))
+      print "Configuration saved to %s" % "./config.json"
+
     else:
-      res = "n"
-      while res != "y":
-        c["zones"] = get_zone_info(c)
-        print "Here is your zone info:"
-        for zone in sorted(c["zones"].keys()):
-          s = c["zones"][zone]
-          print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
-        res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
-      
-    # Write out the config
-    with open(config_file, 'wt') as f:
-      f.write(json.dumps(c, indent=4, sort_keys=True))
+      # Config file given, make sure we have all the info we need
+      c = static_config
+      missing_params = []
+      for key in params:
+        if key not in c:
+          missing_params.append(key)
+      if len(missing_params) > 0:
+        print "Missing the following values from %s: %s" % (config_file, ", ".join(missing_params))
+        exit(2)
     
+    
+    if debug:
+      print json.dumps(c, indent=2)
+      
     #######################################
     #### Actually do some work
     #######################################
@@ -352,10 +376,25 @@ def __main__(action = None, ebs_optimized = False):
   #### Terminate a cluster
   ########################
   elif action == "terminate":
-    if os.path.exists(config_file):
+    if config_file == None and not os.path.exists("./config.json"):
+      print "Can't find a previous config file to auto-terminate. If you can't find the file then you will have to destroy the cluster by hand."
+      exit(2)
+    elif config_file != None and not os.path.exists(config_file):
+      print "Can't find provided config file %s. Check the path and try again." % config_file
+      exit(2)
+    else:
+      if config_file == None:
+        config_file = "./config.json"
+        
       with open(config_file) as f:
         c = json.loads(f.read())
         f.close()
+        
+      if debug:
+        print "DEBUG:"
+        print json.dumps(c, indent=2)
+ 
+ 
       mycluster =  nuodbTools.cluster.Cluster(
                                              alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
                                              aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
@@ -375,16 +414,16 @@ def __main__(action = None, ebs_optimized = False):
         res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
         if res == "y":
           mycluster.delete_dns()
-    else:
-      print "Can't find a previous config file to auto-terminate. If you can't find the file then you will have to destroy the cluster by hand."
-      exit(2)
+      
   else:
     help()
 
 sys.stdout=nuodbTools.cluster.Unbuffered(sys.stdout)
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument("-a", "--action", dest='action', action='store', help="What action should be take on the cluster",  choices=["create", "terminate"], required = True )
+parser.add_argument("-c", "--config_file", dest='config_file', action='store', help="A configuration file for the cluster", required = False )
+parser.add_argument("--debug", dest='debug', action='store_true', help="Show a lof of debug data as part of the script", default = False, required = False )
 parser.add_argument("--ebs-optimized", dest='ebs_optimized', action='store_true', help="Use ebs-optimized instances", default = False, required = False )
 args = parser.parse_args()
 
-__main__(action=args.action, ebs_optimized=args.ebs_optimized)
+__main__(action=args.action, config_file = args.config_file, debug = args.debug, ebs_optimized=args.ebs_optimized)
