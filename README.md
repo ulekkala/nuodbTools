@@ -24,8 +24,18 @@
   * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
   
 ### Installation:
-* Prerequisites
+#### Prerequisites
+  * Fedora
+`sudo yum -y install git python-devel python-pip`
   * Ubuntu
-  
-* Git clone this repo to a local directory on your machine 
+`sudo apt-get install git python-dev python-pip`
+#### Installation
+* Run the following from the command line
 `git clone https://github.com/nuodb/nuodbTools.git`
+`cd nuodbTools`
+`sudo python setup.py install` 
+* Run the tool of your choice:
+[`nuodb_backup.py`](nuodb_backup.md)
+[`nuodb_aws_quickstart.py`](nuodb_aws_quickstart.md)
+[`nuodb_load.py`](nuodb_load.md)
+[`nuodb_tarball_installer.py`](nuodb_tarball_installer.md)
