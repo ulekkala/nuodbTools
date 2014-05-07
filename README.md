@@ -30,7 +30,10 @@
     * `sudo yum -y install git python-devel python-pip`
   * Ubuntu
     * `sudo apt-get install git python-dev python-pip`
-    
+  * CentOS & RHEL
+    * At this writing CentOS & RHEL do not ship with Python 2.7 support. There are a number of [solutions on Google](https://www.google.com/search?btnG=1&pws=0&q=installing+python+2.7+on+centos). After python2.7 is installed then:
+    * `sudo yum -y install git python-devel python-pip`
+
 #### Installation
 * Run the following from the command line
 ```
