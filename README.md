@@ -26,9 +26,12 @@
 ### Installation:
 #### Prerequisites
   * Fedora
+
 `sudo yum -y install git python-devel python-pip`
   * Ubuntu
+
 `sudo apt-get install git python-dev python-pip`
+
 #### Installation
 * Run the following from the command line
 `git clone https://github.com/nuodb/nuodbTools.git`
