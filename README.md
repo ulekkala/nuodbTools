@@ -5,7 +5,7 @@
 * If this is your first database and you want to try out NuoDB you have a few options (in order of complexity):
   * [Install NuoDB natively on a physical machine](http://dev.nuodb.com/download-nuodb/request/download)
   * [Create a NuoDB cluster in a set of virtual machines using Vagrant](https://github.com/nuodb/nuodb-chef#vagrant)
-  * [Create a NuoDB multiple region cluster in Amazon](nuodb_aws_quickstart.md)
+  * [Create a multiple region NuoDB cluster in Amazon](nuodb_aws_quickstart.md)
 * Once you have a running database you can take advantage of the tools provided in this package
 
 ## What are the tools provided?
@@ -22,15 +22,15 @@
   * [Paramiko](https://github.com/paramiko/paramiko)
   * [Requests](http://docs.python-requests.org/en/latest/)
   * [NuoDB Python Driver](https://github.com/nuodb/nuodb-python)
-  
-### Installation:
+
+<a name="usage"></a>
+### Usage
 #### Prerequisites
   * Fedora
-
-`sudo yum -y install git python-devel python-pip`
+    * `sudo yum -y install git python-devel python-pip`
   * Ubuntu
-
-`sudo apt-get install git python-dev python-pip`
+    * `sudo apt-get install git python-dev python-pip`
+    
 #### Installation
 * Run the following from the command line
 ```
@@ -39,8 +39,7 @@ cd nuodbTools
 sudo python setup.py install
 ```
 * Run the tool of your choice:
-
-[nuodb_backup.py](nuodb_backup.md)
-[nuodb_aws_quickstart.py](nuodb_aws_quickstart.md)
-[nuodb_load.py](nuodb_load.md)
-[nuodb_tarball_installer.py](nuodb_tarball_installer.md)
+  * [`nuodb_backup.py`](nuodb_backup.md)
+  * [`nuodb_aws_quickstart.py`](nuodb_aws_quickstart.md)
+  * [`nuodb_load.py`](nuodb_load.md)
+  * [`nuodb_tarball_installer.py`](nuodb_tarball_installer.md)

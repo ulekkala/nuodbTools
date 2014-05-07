@@ -1,9 +1,12 @@
 ## Using `nuodb_aws_quickstart.py`:
-* This script allows you to spin up the necessary services to run a NuoDB cluster in [Amazon EC2](http://aws.amazon.com/ec2/)
+* This script allows you to spin up the instances and services to run a NuoDB cluster in [Amazon EC2](http://aws.amazon.com/ec2/)
 
 ### Preparation:
+* Install this toolkit
+  * Follow the instructions at the bottom of [this page](README.md#usage)
 * DNS Setup
-  * The best and easiest way to use these scripts is to use a [Amazon Route53](http://aws.amazon.com/route53/) hosted domain. If you do not have one the script will attempt to emulate DNS by populating /etc/hosts in each of your servers.
+  * For all of the instances to work together the machines need to find each other.
+  * The best and easiest way to do this is to use a [Amazon Route53](http://aws.amazon.com/route53/) hosted domain. If you do not have one the script will attempt to emulate DNS by populating /etc/hosts in each of your servers.
 * Determine which regions & subnets to use
   * Amazon has (as of this writing) 8 different regions. You should determine which zones you wish to use for your cluster. You will have the ability to choose a base AMI for your installation in each zone- this script will give you the choice of the Amazon Linux ones, a suggested quickstart one, one in your account, or an arbitrary one. If you choose an arbitrary one then make note of the id (ami-xxxxxxxxx) because you will need to enter it later.
   * In each region you should determine the subnets for each zone you want to use. Amazon subnet IDs are in the format 'subnet-aaaaaaaa'. You will be prompted for the subnets you would like to use.
@@ -27,4 +30,10 @@
 * Run `nuodb_aws_quickstart.py -a create`
 * Enter the information you gathered above, following the prompts
 * When the script completes you will have a running cluster in AWS. The script will provide you with URLs for the consoles and brokers so that you may start interacting with it immediately.
+* In the directory you ran the script from there will be a config.json file which stores information about your cluster... keep this someplace handy.
+* To terminate your cluster and restart you can run
+```
+nuodb_aws_quickstart.py -a terminate -c /YOUR/CONFIG/FILE.json
+nuodb_aws_quickstart.py -a create -c /YOUR/CONFIG/FILE.json
+```
 * Enjoy NuoDB!
