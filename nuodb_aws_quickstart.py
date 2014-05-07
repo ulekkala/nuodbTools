@@ -140,14 +140,17 @@ def get_zone_info(c):
    
     for ami in amis:
       if ami.architecture == "x86_64" and ami.description != None and len(ami.description) > 0 and "ami-" in ami.id and ami.platform != "windows":
+
         if ami.owner_alias != None and ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache:
-          ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
+          ami_dict["  ".join([ami.id.encode('utf-8'), ami.name.encode('utf-8')])] = {"id": ami.id, "location": ami.location, "name": ami.name}
         elif ami.owner_alias != None and ami.owner_alias.encode('utf8') != u"amazon": 
-          ami_dict["  ".join([ami.id.encode('utf-8'), ami.description.encode('utf-8')])] = {"id": ami.id, "location": ami.location}
+          ami_dict["  ".join([ami.id.encode('utf-8'), ami.name.encode('utf-8')])] = {"id": ami.id, "location": ami.location, "name": ami.name}
+        elif ami.owner_id == u'802164393885' and "Quickstart" in ami.name.encode('utf-8'): 
+          ami_dict["  ".join([ami.id.encode('utf-8'), ami.name.encode('utf-8')])] = {"id": ami.id, "location": ami.location, "name": ami.name}
     ami_descriptions = sorted(ami_dict.keys()) 
     ami_descriptions.append("NONE OF THE ABOVE")
     for idx, desc in enumerate(ami_descriptions):
-      if "Amazon Linux AMI x86_64 PV EBS" in desc:
+      if "NuoDB" in desc and "Quickstart" in desc:
         suggested = idx
     ami_choice = choose_from_list(ami_descriptions, suggested)
     if ami_choice == len(ami_descriptions) - 1:
