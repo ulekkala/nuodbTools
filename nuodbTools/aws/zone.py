@@ -17,13 +17,13 @@ class Zone:
         errorstr = ""
         exists = False
         
-        if vpc_id != None:
-          vpc_ids = [vpc_id]
-        elif vpc_id == "all":
+        if vpc_id == "all":
           vpc_ids = []
           for subnet in self.get_subnets():
             if subnet['vpc_id'] not in vpc_ids:
               vpc_ids.append['vpc_id']
+        elif vpc_id != None:
+          vpc_ids = [vpc_id]
         else:
           vpc_ids = [self.vpc_id]
         
