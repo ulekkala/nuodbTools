@@ -107,8 +107,8 @@ def get_zone_info(c):
         zone = zone_obj.name
         if zone not in r:
           regionlist.append(zone)
-      get = int(choose_from_list(regionlist))
-      r[regionlist[get]] = {}
+      get = int(choose_from_list(sorted(regionlist)))
+      r[sorted(regionlist)[get]] = {}
       i += 1
   # amazon has a ton of amis named the same thing. Choose the latest one. Only reliable way I can find is to scrape their wiki. Cache this.
   page_cache = unicodedata.normalize("NFKD", unicode(urllib2.urlopen("http://aws.amazon.com/amazon-linux-ami/").read(), "utf-8"))
