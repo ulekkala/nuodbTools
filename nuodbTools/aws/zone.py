@@ -14,35 +14,36 @@ class Zone:
       return self.connection
       
     def edit_security_group(self, name, description="EMPTY", rules=[], vpc_id = None):
-        errorstr = ""
-        exists = False
+      errorstr = ""
+      exists = False
         
-        if vpc_id == "all":
-          vpc_ids = []
-          for subnet in self.get_subnets():
-            if subnet['vpc_id'] not in vpc_ids:
-              vpc_ids.append['vpc_id']
-        elif vpc_id != None:
-          vpc_ids = [vpc_id]
-        else:
-          vpc_ids = [self.vpc_id]
+      if vpc_id == "all":
+        vpc_ids = []
+        subnets = self.get_subnets()
+        for subnet in subnets:
+          if subnets[subnet]['vpc_id'] not in vpc_ids:
+            vpc_ids.append(subnets[subnet]['vpc_id'])
+      elif vpc_id != None:
+        vpc_ids = [vpc_id]
+      else:
+        vpc_ids = [self.vpc_id]
         
-        for vpc_id in vpc_ids:
-          for security_group in self.connection.get_all_security_groups():
-              if security_group.name == name and security_group.vpc_id == vpc_id:
-                  securityGroup = security_group
-                  exists = True
-          if not exists:
-            securityGroup = self.connection.create_security_group(name, description, vpc_id=vpc_id)
-          for rule in rules:
-            try:
-              if rule['cidr_ip'] == "self":
-                self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], src_group=securityGroup)
-              else:
-                self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
-            except:
-              pass
-        return securityGroup
+      for vpc_id in vpc_ids:
+        for security_group in self.connection.get_all_security_groups():
+            if security_group.name == name and security_group.vpc_id == vpc_id:
+                securityGroup = security_group
+                exists = True
+        if not exists:
+          securityGroup = self.connection.create_security_group(name, description, vpc_id=vpc_id)
+        for rule in rules:
+          try:
+            if rule['cidr_ip'] == "self":
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], src_group=securityGroup)
+            else:
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
+          except:
+            pass
+      return securityGroup
       
     def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip = None, src_group=None, dry_run=None):
       if src_group != None:
