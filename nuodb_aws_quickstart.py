@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-description="""
+description = """
 NuoDB AWS cluster quickstart\n
 ============================\n
 This script creates a multiregion sandbox cluster of a given number of nodes in AWS EC2.\n
@@ -12,12 +12,13 @@ import nuodbTools.aws
 import nuodbTools.cluster
 import json
 import os
+import re
 import sys
 import time
 import unicodedata
 import urllib2
 
-def user_prompt(prompt, valid_choices = [], default = None):
+def user_prompt(prompt, valid_choices=[], default=None):
   if default != None:
     prompt = "%s [%s] " % (prompt, str(default))
   val = raw_input(prompt)
@@ -30,13 +31,13 @@ def user_prompt(prompt, valid_choices = [], default = None):
     if val == str(choice):
       return choice
   valid_strings = []
-  #Handle integer inputs
+  # Handle integer inputs
   for choice in valid_choices:
     valid_strings.append(str(choice))
   print "Invalid choice. Your choices are: [" + ",".join(valid_strings) + "]"
   return user_prompt(prompt, valid_choices)
   
-def choose_from_list(params = [], suggested = None):
+def choose_from_list(params=[], suggested=None):
   # returns index of the list you gave me
   i = 0
   options = []
@@ -45,13 +46,13 @@ def choose_from_list(params = [], suggested = None):
       suggest_prompt = "<----- SUGGESTED"
     else:
       suggest_prompt = ""
-    #print "%s)  %s %s" % (i+1, params[i], suggest_prompt)
-    print '{:2d}) {:25} {}'.format(i+1, params[i], suggest_prompt)
+    # print "%s)  %s %s" % (i+1, params[i], suggest_prompt)
+    print '{:2d}) {:25} {}'.format(i + 1, params[i], suggest_prompt)
     i += 1
     options.append(i)
   return user_prompt("Choose one:", options) - 1
 
-def choose_multiple_from_list(params = []):
+def choose_multiple_from_list(params=[]):
   # returns list of indicies from parameters sent
   tally = []
   while True:
@@ -93,7 +94,7 @@ def get_zone_info(c):
   r = {}
   aws_conn = nuodbTools.aws.Zone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
   available_zones = aws_conn.get_all_regions()
-  zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1,len(available_zones)+1))
+  zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
   # open a Boto connection to get metadata
   
   if zone_count == len(available_zones):
@@ -116,7 +117,7 @@ def get_zone_info(c):
   # Region specific choices
   for region in r:
     # Server count 
-    r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1,20))
+    r[region]["servers"] = user_prompt(region + " --- How many servers? (1-20) ", range(1, 20))
     zone_obj = nuodbTools.aws.Zone(region)
     zone_conn = zone_obj.connect(c["aws_access_key"], c["aws_secret"])
     
@@ -131,16 +132,15 @@ def get_zone_info(c):
       print "Key %s does not exist in region %s. Please fix this and rerun this script" % (c['ssh_key'], region)
       exit(2)
     
-    # Choose AMI
     print
+    # Choose AMI
     print region + " --- Choose the AMI (Loading...) "
     amis = zone_obj.amis
     ami_dict = {}
     suggested = None
-   
+    
     for ami in amis:
       if ami.architecture == "x86_64" and ami.description != None and len(ami.description) > 0 and "ami-" in ami.id and ami.platform != "windows":
-
         if ami.owner_alias != None and ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache:
           ami_dict["  ".join([ami.id.encode('utf-8'), ami.name.encode('utf-8')])] = {"id": ami.id, "location": ami.location, "name": ami.name}
         elif ami.owner_alias != None and ami.owner_alias.encode('utf8') != u"amazon": 
@@ -159,9 +159,10 @@ def get_zone_info(c):
         ami_enter = user_prompt("Enter the AMI you want to use (ami-xxxxxxxx): ")
       r[region]["ami"] = ami_enter
     else:
-      r[region]["ami"] =  ami_dict[ami_descriptions[ami_choice]]['id']
+      r[region]["ami"] = ami_dict[ami_descriptions[ami_choice]]['id']
     
-    #What subnets to use?
+    
+    # What subnets to use?
     print
     print region + " --- Choose the subnets: "
     subnets = zone_obj.get_subnets()
@@ -182,7 +183,7 @@ def get_zone_info(c):
       print "--- YOU MUST CHOOSE AT LEAST ONE SUBNET"
       exit()
     
-    #What security groups to use?
+    # What security groups to use?
     print
     print region + " --- Choose the security groups: "
     print region + " --- YOU MUST CHOOSE AT LEAST ONE SECURITY GROUP WITH SSH OPEN TO YOUR CURRENT LOCATION"
@@ -194,9 +195,9 @@ def get_zone_info(c):
         default_group_exists = True
     if not default_group_exists:
       res = user_prompt("Do you want to create a default security group for this zone? It would open the default NuoDB ports to the world and SSH from this machine. (y/n)", ["y", "n"], "n")
-      if res =="y":
+      if res == "y":
         my_public_ip = urllib2.urlopen('http://checkip.dyndns.org').read().strip().split("Current IP Address: ")[1].replace("</body></html>", "").strip()
-        zone_obj.edit_security_group("NuoDB_default_ports", "These are the default NuoDB ports, open to the world. Autogenerated by nuodb_aws_quickstart.py", [{"protocol": "tcp", "from_port": 48004, "to_port": 48020, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 8888, "to_port": 8889, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 8080, "to_port": 8080, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 22, "to_port": 22, "cidr_ip": "%s/32" % my_public_ip}], vpc_id = "all")
+        zone_obj.edit_security_group("NuoDB_default_ports", "These are the default NuoDB ports, open to the world. Autogenerated by nuodb_aws_quickstart.py", [{"protocol": "tcp", "from_port": 48004, "to_port": 48020, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 8888, "to_port": 8889, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 8080, "to_port": 8080, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 22, "to_port": 22, "cidr_ip": "%s/32" % my_public_ip}], vpc_id="all")
         security_groups = zone_obj.get_security_groups()
     sg_descs = []
     sg_ids = []
@@ -210,20 +211,91 @@ def get_zone_info(c):
         
   return r 
 
+def get_zone_info_automatic(c):
+  r= {}
+  aws_conn = nuodbTools.aws.Zone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
+  available_zones = aws_conn.get_all_regions()
+  zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
+  # open a Boto connection to get metadata
   
-def __main__(action = None, config_file = None, debug = False, ebs_optimized = False):
+  if zone_count == len(available_zones):
+    for zone in available_zones:
+      r[zone.name] = {}
+  else:
+    i = 0
+    while i < int(zone_count):
+      regionlist = []
+      for zone_obj in available_zones:
+        zone = zone_obj.name
+        if zone not in r:
+          regionlist.append(zone)
+      get = int(choose_from_list(sorted(regionlist)))
+      r[sorted(regionlist)[get]] = {}
+      i += 1
+  # amazon has a ton of amis named the same thing. Choose the latest one. Only reliable way I can find is to scrape their wiki. Cache this.
+  page_cache = unicodedata.normalize("NFKD", unicode(urllib2.urlopen("http://aws.amazon.com/amazon-linux-ami/").read(), "utf-8"))
+  
+  for region in r:
+    zone_obj = nuodbTools.aws.Zone(region)
+    zone_conn = zone_obj.connect(c["aws_access_key"], c["aws_secret"])
+    keypairs = zone_conn.get_all_key_pairs()
+    key_exists = False
+    for keypair in keypairs:
+      if c['ssh_key'] == keypair.name:
+        key_exists = True
+    if not key_exists:
+      print "Key %s does not exist in region %s. Please fix this and rerun this script" % (c['ssh_key'], region)
+      exit(2)
+      
+    #set servers
+    r[region]["servers"] = 2
+    
+    amis = zone_obj.amis
+    for ami in amis:
+      if ami.owner_id == u'802164393885' and "Quickstart" in ami.name.encode('utf-8') and ami.architecture == "x86_64" and "ami-" in ami.id and ami.platform != "windows":
+        r[region]["ami"] = ami.id
+    # Couldn't find a quickstart ami, use amazon base
+    if "ami" not in r[region]:
+      for ami in amis:
+        if ami.owner_alias != None and ami.owner_alias.encode('utf-8') == u"amazon" and ami.id in page_cache and "amzn-ami-pv" in ami.name and "ebs" in ami.name and ami.architecture == "x86_64" and ami.platform != "windows":
+          r[region]["ami"] = ami.id
+    print "%s: Using %s" % (region, r[region]['ami'])
+    
+    subnets = zone_obj.get_subnets()
+    for subnet in subnets:
+      found_subnet = False
+      if subnets[subnet]['state'] == 'available' and subnets[subnet]['defaultForAz'] and not found_subnet: 
+        r[region]['subnets'] = [subnets[subnet]['id']]
+        r[region]['vpcs'] = [subnets[subnet]['vpc_id']]
+    print "%s: Using %s" % (region, ",".join(r[region]['subnets']))
+    
+    security_groups = zone_obj.get_security_groups()
+    default_group_exists = False
+    for group in security_groups:
+      if group.name == "NuoDB_default_ports":
+        r[region]['security_group_ids'] = [group.id]
+        default_group_exists = True
+    if not default_group_exists:
+      my_public_ip = urllib2.urlopen('http://checkip.dyndns.org').read().strip().split("Current IP Address: ")[1].replace("</body></html>", "").strip()
+      group = zone_obj.edit_security_group("NuoDB_default_ports", "These are the default NuoDB ports, open to the world. Autogenerated by nuodb_aws_quickstart.py", [{"protocol": "tcp", "from_port": 48004, "to_port": 48020, "cidr_ip": "0.0.0.0/0"}, {"protocol": "tcp", "from_port": 8888, "to_port": 8889, "cidr_ip": "%s/32" % my_public_ip}, {"protocol": "tcp", "from_port": 8080, "to_port": 8080, "cidr_ip": "%s/32" % my_public_ip}, {"protocol": "tcp", "from_port": 22, "to_port": 22, "cidr_ip": "%s/32" % my_public_ip}], vpc_id="all")
+      r[region]['security_group_ids'] = [group.id]
+  return r
+
+  
+def __main__(action=None, config_file=None, debug=False, ebs_optimized=False, advanced_mode = False):
   params = {
-            "cluster_name": { "default" : "mycluster", "prompt" : "What is the name of your cluster?"},
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
+            "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in Amazon in all the regions you want to start instances:"},
+            "ssh_keyfile": {"default": "/home/USER/.ssh/id_rsa", "prompt": "Enter the location on this local machine of the private key used for ssh. Please use the absolute path: "},
+            "alert_email" : {"default" : "", "prompt" : "What email address would you like health alerts sent to?", "accept": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$", "input_error": "Please enter a valid email address"}
+          }
+  verbose_params = {
             "dns_domain": {"default" : "None", "prompt" : "Enter a Route53 domain under your account. If you don't have one enter \"None\":"},
-            "domain_name": {"default": "domain", "prompt": "What is the name of your NuoDB domain?"},
+            "domain_name": {"default": "nuodb", "prompt": "What is the name of your NuoDB domain?", "accept": "^[a-zA-Z1-9]*$", "input_error": "Acceptable domain names contain only letters and numbers"},
             "domain_password": {"default": "bird", "prompt": "What is the admin password of your NuoDB domain?"},
             "license": {"default": "", "prompt": "Please enter your NuoDB license- or leave empty for development version:"},
-            "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in all the regions you want to start instances:"},
-            "ssh_keyfile": {"default": "/home/USER/.ssh/id_rsa", "prompt": "Enter the location of the private key used for ssh. Please use the absolute path: "},
-            "alert_email" : {"default" : "","prompt" : "What email address would you like health alerts sent to?"},
-            "brokers_per_zone": {"default" : 2, "prompt": "How many brokers do you want in each region?"},
+            "brokers_per_zone": {"default" : 1, "prompt": "How many brokers do you want in each region?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "custom_rpm" : {"default" : "", "prompt": "Use alternative installation package? Empty for default: "}
           }
   if action == "create":
@@ -248,9 +320,9 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
     if config_file == None:
       # If the customer doesn't give us a config file prompt for everything
       for key in sorted(params.keys()):
-        #if len(str(params[key]['default'])) > 30:
+        # if len(str(params[key]['default'])) > 30:
         #  default = str(params[key]['default'])[0:27] + "..."
-        #else:
+        # else:
         default = str(params[key]['default'])
         val = raw_input("%s [%s] " % (params[key]['prompt'], default))
         if len(val) == 0:
@@ -258,15 +330,23 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
         elif len(val.strip()) == 0:
           c[key] = None
         else:
-          c[key] = val
+          if "accept" in params[key]:
+            regex = re.compile(params[key]['accept'])
+            while not regex.match(val.strip()):
+              print "ERROR: " + params[key]['input_error']
+              val = raw_input("%s [%s] " % (params[key]['prompt'], default))
+          c[key] = val.strip()
           
       #### test for ssh key
-      if not os.path.exists(c['ssh_keyfile']):
-        print "Cannot find ssh private key %s. Please check and run again." % c['ssh_keyfile']
-        exit(2)
+      while not os.path.exists(c['ssh_keyfile']):
+        print "Cannot find (on this local machine) the ssh private key %s. Please try again." % c['ssh_keyfile']
+        val = raw_input("%s [%s] " % (params['ssh_keyfile']['prompt'], default))
+        c['ssh_keyfile'] = val
   
       #### Get Instance type
-      if "instance_type" not in static_config:
+      if not advanced_mode:
+        c['instance_type'] = "m3.xlarge"
+      elif "instance_type" not in static_config:
         c['instance_type'] = get_instance_type()
       else:
         res = user_prompt("Use the instance type of %s? (y/n) " % static_config['instance_type'], ["y", "n"])
@@ -275,31 +355,36 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
         else:
           c['instance_type'] = static_config['instance_type']
       
-      ### Populate zone data
-      if "zones" in static_config:
-        print "Found this zone info:"
-        for zone in sorted(static_config["zones"].keys()):
-          s = static_config["zones"][zone]
-          print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
-        res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
-        if res == "y":
-          c['zones'] = static_config["zones"]
+      if advanced_mode:
+        # ## Populate zone data
+        if "zones" in static_config:
+          print "Found this zone info:"
+          for zone in sorted(static_config["zones"].keys()):
+            s = static_config["zones"][zone]
+            print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+          res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
+          if res == "y":
+            c['zones'] = static_config["zones"]
+          else:
+            while res != "y":
+              c["zones"] = get_zone_info(c)
+              for zone in sorted(c["zones"].keys()):
+                s = c["zones"][zone]
+                print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
+              res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
         else:
+          res = "n"
           while res != "y":
             c["zones"] = get_zone_info(c)
+            print "Here is your zone info:"
             for zone in sorted(c["zones"].keys()):
               s = c["zones"][zone]
               print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
             res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
       else:
-        res = "n"
-        while res != "y":
-          c["zones"] = get_zone_info(c)
-          print "Here is your zone info:"
-          for zone in sorted(c["zones"].keys()):
-            s = c["zones"][zone]
-            print "{}    {:12}    {}    {}    {}".format(zone, s["ami"], str(s["servers"]) + " servers", ",".join(s["subnets"]), ",".join(s["security_group_ids"]))
-          res = user_prompt("Use this configuration? (y/n) ", ["y", "n"])
+        c['zones'] = get_zone_info_automatic(c)
+        for param in verbose_params:
+          c[param] = verbose_params[param]['default']
         
       # Write out the config
       with open("./config.json", 'wt') as f:
@@ -325,24 +410,24 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
     #### Actually do some work
     #######################################
     
-    mycluster =  nuodbTools.cluster.Cluster(
-                                           alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
-                                           aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
-                                           brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
-                                           dns_domain = c['dns_domain'], domain_name = c['domain_name'],
-                                           domain_password = c['domain_password'], instance_type = c['instance_type'], 
-                                           nuodb_license = c['license'])
+    mycluster = nuodbTools.cluster.Cluster(
+                                           alert_email=c['alert_email'], ssh_key=c['ssh_key'], ssh_keyfile=c['ssh_keyfile'],
+                                           aws_access_key=c['aws_access_key'], aws_secret=c['aws_secret'],
+                                           brokers_per_zone=c['brokers_per_zone'], cluster_name=c['domain_name'],
+                                           dns_domain=c['dns_domain'], domain_name=c['domain_name'],
+                                           domain_password=c['domain_password'], instance_type=c['instance_type'],
+                                           nuodb_license=c['license'])
     print "Creating the cluster."
     for zone in c['zones']:
       mycluster.connect_zone(zone)
       z = c['zones'][zone]
-      for i in range(0,z['servers']):
+      for i in range(0, z['servers']):
         root_name = "db" + str(i)
-        myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
+        myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'])  # Mark the number of nodes to be created
         print "Added %s" % myserver
     
     print "Booting the cluster"
-    mycluster.create_cluster(ebs_optimized = ebs_optimized) # Actually spins up the nodes.
+    mycluster.create_cluster(ebs_optimized=ebs_optimized)  # Actually spins up the nodes.
     print "Cluster has started up. Here are your brokers:"
     for broker in mycluster.get_brokers():
       print broker
@@ -351,8 +436,8 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
     
     print("Waiting for an available web console")
     healthy = False
-    i=0
-    wait = 600 #seconds
+    i = 0
+    wait = 600  # seconds
     good_host = None
     while i < wait:
       if not healthy:
@@ -398,35 +483,36 @@ def __main__(action = None, config_file = None, debug = False, ebs_optimized = F
         print json.dumps(c, indent=2)
  
  
-      mycluster =  nuodbTools.cluster.Cluster(
-                                             alert_email = c['alert_email'], ssh_key = c['ssh_key'], ssh_keyfile = c['ssh_keyfile'],
-                                             aws_access_key = c['aws_access_key'], aws_secret = c['aws_secret'], 
-                                             brokers_per_zone = c['brokers_per_zone'], cluster_name = c['cluster_name'],
-                                             dns_domain = c['dns_domain'], domain_name = c['domain_name'],
-                                             domain_password = c['domain_password'], instance_type = c['instance_type'], 
-                                             nuodb_license = c['license'])
+      mycluster = nuodbTools.cluster.Cluster(
+                                             alert_email=c['alert_email'], ssh_key=c['ssh_key'], ssh_keyfile=c['ssh_keyfile'],
+                                             aws_access_key=c['aws_access_key'], aws_secret=c['aws_secret'],
+                                             brokers_per_zone=c['brokers_per_zone'], cluster_name=c['domain_name'],
+                                             dns_domain=c['dns_domain'], domain_name=c['domain_name'],
+                                             domain_password=c['domain_password'], instance_type=c['instance_type'],
+                                             nuodb_license=c['license'])
       
       for zone in c['zones']:
         mycluster.connect_zone(zone)
         z = c['zones'][zone]
-        for i in range(0,z['servers']):
+        for i in range(0, z['servers']):
           root_name = "db" + str(i)
-          myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids = z['security_group_ids'], nuodb_rpm_url = c['custom_rpm']) # Mark the number of nodes to be created
+          myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'])  # Mark the number of nodes to be created
       mycluster.terminate_hosts()
       if not mycluster.dns_emulate:
-        res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y","n"])
+        res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y", "n"])
         if res == "y":
           mycluster.delete_dns()
       
   else:
     help()
 
-sys.stdout=nuodbTools.cluster.Unbuffered(sys.stdout)
+sys.stdout = nuodbTools.cluster.Unbuffered(sys.stdout)
 parser = argparse.ArgumentParser(description=description)
-parser.add_argument("-a", "--action", dest='action', action='store', help="What action should be take on the cluster",  choices=["create", "terminate"], required = True )
-parser.add_argument("-c", "--config_file", dest='config_file', action='store', help="A configuration file for the cluster", required = False )
-parser.add_argument("--debug", dest='debug', action='store_true', help="Show a lof of debug data as part of the script", default = False, required = False )
-parser.add_argument("--ebs-optimized", dest='ebs_optimized', action='store_true', help="Use ebs-optimized instances", default = False, required = False )
+parser.add_argument("-a", "--action", dest='action', action='store', help="What action should be take on the cluster", choices=["create", "terminate"], required=True)
+parser.add_argument("--advanced", dest='advanced_mode', action='store_true', help="Use interactive mode to determine envrionment data. For advanced AWS users.", default=False, required=False)
+parser.add_argument("-c", "--config_file", dest='config_file', action='store', help="A configuration file for the cluster", required=False)
+parser.add_argument("--debug", dest='debug', action='store_true', help="Show a lof of debug data as part of the script", default=False, required=False)
+parser.add_argument("--ebs-optimized", dest='ebs_optimized', action='store_true', help="Use ebs-optimized instances", default=False, required=False)
 args = parser.parse_args()
 
-__main__(action=args.action, config_file = args.config_file, debug = args.debug, ebs_optimized=args.ebs_optimized)
+__main__(action=args.action, config_file=args.config_file, debug=args.debug, ebs_optimized=args.ebs_optimized, advanced_mode = args.advanced_mode)

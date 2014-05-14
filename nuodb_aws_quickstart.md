@@ -4,6 +4,23 @@
 ### Preparation:
 * Install this toolkit
   * Follow the instructions at the bottom of [this page](README.md#usage)
+ 
+### Basic Mode
+* Use this mode if you would like to create your cluster inside the default VPC
+* What you will need:
+  * Your AWS access key and secret
+    * Your access key can be found from the AWS console ["Services -> IAM -> Users -> YOURUSER -> Security Credentials"](https://console.aws.amazon.com/iam/home#users)
+    * If you do not have any access keys listed you may "Manage Access Keys" and create a new pair.
+    * Each access key has an associated secret. You must have that key stored somewhere as it is not retrievable from the AWS console. If you do not have it you must create another access key and secret thorough "Manage Access Keys"
+    * Any user you will be using for this purpose should have Power User or Administrator privileges ("Services -> IAM -> Users -> YOURUSER -> Permissions")
+  * A consistent SSH public key (also named consistently) loaded in each region you want to run in and the associated private key
+    * Your keys are loaded individually for each region and can be managed through the [web UI](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#KeyPairs:)
+    * Please consult [this document](http://www.nuodb.com/tbd) on how to do this
+* From your terminal prompt run the following command:
+`nuodb_aws_quickstart.py -a create`
+* Enter the information you gathered above to create your cluster.
+  
+### Advanced Mode
 * DNS Setup
   * For all of the instances to work together the machines need to find each other.
   * The best and easiest way to do this is to use a [Amazon Route53](http://aws.amazon.com/route53/) hosted domain. If you do not have one the script will attempt to emulate DNS by populating /etc/hosts in each of your servers.
