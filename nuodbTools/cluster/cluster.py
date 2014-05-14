@@ -119,7 +119,8 @@ class Cluster:
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
       template_vars = dict(
                           hostname = host,
-                          chef_json = json.dumps(stub['chef_data'])
+                          chef_json = json.dumps(stub['chef_data']),
+                          email_address = self.alert_email
                           )
       f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.py"]))
       template = string.Template(f.read())
