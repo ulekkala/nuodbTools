@@ -76,16 +76,16 @@ class Host:
     return amazon_data
   
   def apply_license(self, nuodblicense):
-        if not self.isBroker:
-            return "Can only apply a license to a node that is a Broker"
-        f = tempfile.NamedTemporaryFile()
-        f.write(nuodblicense)
-        f.seek(0)
-        self.copy(f.name, "/tmp/license.file")
-        f.close()
-        for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
-            if self.execute_command(command)[0] != 0:
-                raise HostError("Failed ssh execute on command " + command)
+    if not self.isBroker:
+      return "Can only apply a license to a node that is a Broker"
+    f = tempfile.NamedTemporaryFile()
+    f.write(nuodblicense)
+    f.seek(0)
+    self.copy(f.name, "/tmp/license.file")
+    f.close()
+    for command in [" ".join(["/opt/nuodb/bin/nuodbmgr --broker localhost --password", self.domainPassword, "--command \"apply domain license licenseFile /tmp/license.file\""])]:
+      if self.execute_command(command)[0] != 0:
+        raise HostError("Failed ssh execute on command " + command)
                 
   def attach_volume(self, size, mount_point, snapshot = None, mode= None, user = None, group = None, force = False):
     if not self.exists:
@@ -166,6 +166,7 @@ class Host:
         self.__get_ssh_connection()
     sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
     sftp.put(local_file, remote_file)
+    return True
 
   def create(self, ami, instance_type, getPublicAddress=False, security_group_ids=None, subnet=None, userdata = None, ebs_optimized = False):
     if not self.exists:
@@ -193,7 +194,7 @@ class Host:
       self.update_data()
       return self
   
-  def detach_volume(self, mount_point, force = False):
+  def detach_volume(self, mount_point, force = False, delete=False):
     mounts = self.volume_mounts
     if mount_point not in mounts:
       raise HostError("Cannot unmount %s as it is not a distinct mount on this machine." % mount_point)
@@ -202,10 +203,17 @@ class Host:
     r = self.execute_command("sudo umount %s" % mount_point)
     if r[0] != 0:
       raise HostError("Cannot unmount %s from the host %s: %s" % (mount_point, self.name, "\n".join([r[1], r[2]])))
-    return self.ec2Connection.detach_volume(
+    if delete == False:
+      return self.ec2Connection.detach_volume(
+                                     volume_id=mounts[mount_point]['ebs_volume'],
+                                     instance_id = self.instance.id,
+                                     force = force)
+    else:
+      self.ec2Connection.detach_volume(
                                      volume_id=mounts[mount_point]['ebs_volume'],
                                      instance_id = self.instance.id,
                                      force = True)
+      return self.ec2Connection.delete_volume(volume_id=mounts[mount_point]['ebs_volume'])
 
   def dns_delete(self):
     zone = self.Route53Connection.get_zone(self.dns_domain)

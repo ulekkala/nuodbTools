@@ -69,11 +69,12 @@ class Zone:
     def get_security_groups(self):
       return self.connection.get_all_security_groups()
     
-    def get_subnets(self):
+    def get_subnets(self, vpc_id = None):
       subnets = {}
       vpc_conn = boto.vpc.VPCConnection(aws_access_key_id=self.aws_access_key, aws_secret_access_key=self.aws_secret, region=boto.ec2.get_region(self.name))
       for subnet in vpc_conn.get_all_subnets():
-        subnets[subnet.id] = subnet.__dict__
+        if vpc_id == None or subnet.vpc_id == vpc_id:
+          subnets[subnet.id] = subnet.__dict__
       return subnets
     
     @property
