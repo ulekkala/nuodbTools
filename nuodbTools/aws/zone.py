@@ -11,6 +11,12 @@ class Zone:
       self.aws_access_key = aws_access_key
       self.aws_secret = aws_secret
       self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
+      # Test out our credentials
+      try:
+        self.connection.get_all_key_pairs()
+      except:
+        print "Unable to connect to AWS zone %s with credentials provided. Please check the credentials and try again." % self.name
+        exit(2)
       return self.connection
       
     def edit_security_group(self, name, description="EMPTY", rules=[], vpc_id = None):
@@ -59,7 +65,7 @@ class Zone:
     
     def get_keys(self):
       return self.connection.get_all_key_pairs()
-    
+        
     def get_security_groups(self):
       return self.connection.get_all_security_groups()
     
@@ -86,6 +92,10 @@ class Zone:
     @property
     def instance_types(self):
       return self.connection.get_all_instance_types()
+    
+    @property
+    def regions(self):
+      return boto.ec2.regions()
     
     @property
     def security_groups(self):
