@@ -24,11 +24,11 @@ optional arguments:
                         Database Password
   -t THREADS, --threads THREADS
                         Number of parallel connections
+  -s SCHEMA, --schema SCHEMA
+                        What DB schema to use
   -f FILE, --file FILE  SQL file to use as import. Otherwise random queries are generated
   -d DURATION, --duration DURATION
                         Random queries: How many seconds to run
-  -s SCHEMA, --schema SCHEMA
-                        What DB schema to use
   -r RATIO, --ratio RATIO
                         Random queries: Ratio of SELECT:INSERT:UPDATE:DELETE
   --initial-rows INITIAL_ROWS
