@@ -10,7 +10,7 @@ class Load():
     self.threads = []
     self.dbconn = nuodbTools.cluster.sql(database, broker, username, password, options)
         # self.dbconn.auto_commit(1)
-    if file != None:
+    if file == None:
       self.__create_data()
     else:
       if not os.path.exists(file):
@@ -78,12 +78,15 @@ class Load():
       # Run arbitrary sql load from file
       with open(self.file) as f:
         for line in f:
-          self.dbconn.execute(line, autocommit = True)
-          action = line.split(" ")[0].lower()
-          if action in self.query_info:
-            self.query_info[action] += 1
-          else:
-            self.query_info[action] = 1
+          try:
+            self.dbconn.execute(line, autocommit = True)
+            action = line.split(" ")[0].lower()
+            if action in self.query_info:
+              self.query_info[action] += 1
+            else:
+              self.query_info[action] = 1
+          except:
+            print "Failed SQL on: %s" % line
               
     self.query_info['stop_time'] = calendar.timegm(time.gmtime())
 	    	
