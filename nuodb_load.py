@@ -11,20 +11,28 @@ import sys
 import time
 
 description = """
-This is a rudimentary NuoDB load generation script which uses the python driver to execute some SQL on a NuoDB cluster. It is not a benchmarking tool, just a validation one.
+This is a rudimentary NuoDB load generation script which uses the python driver to execute some SQL on a NuoDB cluster. It is not a benchmarking tool, just a validation one. The load generator has two modes: random queries and sql file.
+
+Random Queries
+==============
+The file will create a table on the database called "LOADERX" where X is a number corresponding to the load thread. Each thread will the execute a series of SELECT:INSERT:UPDATE:DELETE sql queries determined by the ratio flag (by default 5:2:1:1) on that table. Each thread will run for a duration of seconds (by default 10) before it is killed.
+
+SQL File
+========
+By passing in a text file of SQL commands this script will have each thread execute the SQL file in order. Please be aware that some write transactions will fail due to transactional overlap. When using this mode the Random Query fields described above are ignored. Each thread will run the file as quickly as possible and then exit.
 """
-parser = argparse.ArgumentParser(description=description)
+parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument("-db", "--database", dest='database', action='store', help="Target database", required = True )
-parser.add_argument("-b", "--broker", dest='broker', action='store', help="A running broker", required = True )
+parser.add_argument("-b", "--broker", dest='broker', action='store', help="A running broker in the domain", required = True )
 parser.add_argument("-u", "--user", dest='user', action='store', help="Database username", required = True )
 parser.add_argument("-p", "--password", dest='password', action='store', help="Database Password", required = True )
-parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of workers", type=int, default=1)
-parser.add_argument("-f", "--file", dest='file', action='store', help="SQL file to use as import")
-parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
+parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of parallel connections", type=int, default=1)
+parser.add_argument("-f", "--file", dest='file', action='store', help="SQL file to use as import. Otherwise random queries are generated")
+parser.add_argument("-d", "--duration", dest='duration', action='store', help="Random queries: How many seconds to run", type=int, default=10)
 parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="USER")
-parser.add_argument("-r", "--ratio", dest='ratio', action='store', help="Ratio of SELECT:INSERT:UPDATE:DELETE", default="5:2:1:1")
-parser.add_argument("--initial-rows", dest='initial_rows', action='store', help="Each connection pre-populates a table with a certain number of random data rows. This is how many rows to insert at start.", default=100)
-parser.add_argument("--data-length", dest='value_length', action='store', help="Each row has a random string of the length defined here as a value", default=100)
+parser.add_argument("-r", "--ratio", dest='ratio', action='store', help="Random queries: Ratio of SELECT:INSERT:UPDATE:DELETE", default="5:2:1:1")
+parser.add_argument("--initial-rows", dest='initial_rows', action='store', help="Random queries: Each connection pre-populates a table with a certain number of random data rows. This is how many rows to insert at start.", default=100)
+parser.add_argument("--data-length", dest='value_length', action='store', help="Random queries: Each row has a random string of the length defined here as a value", default=100)
 args = parser.parse_args()
 
 threads = args.threads
