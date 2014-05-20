@@ -114,7 +114,10 @@ class Host:
     while volume.status != "available":
         volume.update()
         time.sleep(1)
-    self.ec2Connection.attach_volume(volume.id, self.instance.id, reported_device)
+    try:
+      self.ec2Connection.attach_volume(volume.id, self.instance.id, reported_device)
+    except:
+      self.ec2Connection.attach_volume(volume.id, self.instance.id, actual_device)
     while volume.attachment_state() != "attached":
         volume.update()
         time.sleep(1)
