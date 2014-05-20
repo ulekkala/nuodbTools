@@ -209,10 +209,17 @@ class Host:
                                      instance_id = self.instance.id,
                                      force = force)
     else:
-      self.ec2Connection.detach_volume(
+      if not self.ec2Connection.detach_volume(
                                      volume_id=mounts[mount_point]['ebs_volume'],
                                      instance_id = self.instance.id,
-                                     force = True)
+                                     force = True):
+        raise HostError("Cannot detach EBS volume %s from the host %s" % (mounts[mount_point]['ebs_volume'], self.name))
+      tries = 10
+      while tries > 0 and self.ec2Connection.get_all_volumes(volume_ids=[mounts[mount_point]['ebs_volume']])[0].attach_data.status != None:
+        time.sleep(5)
+        tries -= 1
+      if tries <= 0:
+        raise HostError("Cannot detach EBS volume %s from the host %s after %s seconds" % (mounts[mount_point]['ebs_volume'], self.name, str(50)))
       return self.ec2Connection.delete_volume(volume_id=mounts[mount_point]['ebs_volume'])
 
   def dns_delete(self):

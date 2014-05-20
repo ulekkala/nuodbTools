@@ -9,7 +9,7 @@ import time
 import unittest
 import uuid
 
-config_file = "./config.json"
+config_file = "../../../config.json"
 if not os.path.exists(config_file):
   raise nuodbTools.Error("Can't find required config file %s" % config_file)
 with open(config_file) as f:
@@ -17,13 +17,13 @@ with open(config_file) as f:
   f.close()
 aws_access_key = read_config['aws_access_key']
 aws_secret = read_config['aws_secret']
-aws_region = read_config['aws_region']
-aws_vpc_id = read_config['aws_vpc_id']
-aws_ami = read_config['aws_ami']
-aws_instance_type = read_config['aws_instance_type']
-aws_private_key = read_config['aws_private_key']
-aws_ssh_key_id = read_config['aws_ssh_key_id']
-aws_security_group = read_config['aws_security_group']
+aws_region = sorted(read_config['zones'].keys())[0] 
+aws_vpc_id = read_config['zones'][aws_region]['vpcs'][0]
+aws_ami = read_config['zones'][aws_region]['ami']
+aws_instance_type = read_config['instance_type']
+aws_private_key = read_config['ssh_keyfile']
+aws_ssh_key_id = read_config['ssh_key']
+aws_security_groups = read_config['zones'][aws_region]['security_group_ids']
 name = "unittest_%s" % str(uuid.uuid4())
 
 
@@ -41,27 +41,29 @@ class Base(unittest.TestCase):
                         ec2Connection = cls._ec2Connection,
                         ssh_key = aws_ssh_key_id,
                         ssh_keyfile = aws_private_key)
-    cls._host.create(ami= aws_ami, instance_type=aws_instance_type, getPublicAddress = True, security_group_ids = [aws_security_group], subnet = subnet)
+    cls._host.create(ami= aws_ami, instance_type=aws_instance_type, getPublicAddress = True, security_group_ids = aws_security_groups, subnet = subnet)
     wait_seconds = 300
     while wait_seconds > 0 and not cls._host.is_port_available(22):
       time.sleep(5)
       wait_seconds -= 5
-      print "Waiting %s seconds for ssh port" % str(wait_seconds)
       cls._host.update_data()
     if wait_seconds <= 0:
-      print "failed"
+      cls.fail("Instance %s did not have SSH available after 300 seconds")
     else:
       print "started ec2 instance"
   
   @classmethod
   def tearDownClass(cls):
-    print "stopping"
     cls._host.terminate()
-  
-  
+
   def test_ephemeral_disk(self):
-    self.assertEqual(self._host.execute_command("ls /dev | grep xvdb")[0], 0)
+    if aws_instance_type != "t1.micro":
+      self.assertEqual(self._host.execute_command("ls /dev | grep xvdb")[0], 0)
   
+  def test_mounts(self):
+    print self._host.volume_mounts
+    self.assertTrue(True)
+    
   def test_scp_file(self):
     f = tempfile.NamedTemporaryFile(delete=False)
     i=0
