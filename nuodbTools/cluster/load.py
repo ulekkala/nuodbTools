@@ -1,7 +1,7 @@
-import calendar, hashlib, inspect, nuodbTools.cluster, pynuodb, random, threading, time
+import calendar, hashlib, inspect, nuodbTools.cluster, os, pynuodb, random, threading, time
 
 class Load():
-  def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, truncate_table = True, value_length = 100):
+  def __init__(self, name, database, broker, username, password, options="", initial_rows = 100, truncate_table = True, value_length = 100, file= None):
     args, _, _, values = inspect.getargvalues(inspect.currentframe())
     for i in args:
       setattr(self, i, values[i])
@@ -10,7 +10,11 @@ class Load():
     self.threads = []
     self.dbconn = nuodbTools.cluster.sql(database, broker, username, password, options)
         # self.dbconn.auto_commit(1)
-    self.__create_data()
+    if file != None:
+      self.__create_data()
+    else:
+      if not os.path.exists(file):
+        raise nuodbTools.Error("Can not find file %s" % file)
 # self.get_tables()
   def __create_data(self):
     sql = "CREATE TABLE IF NOT EXISTS " + self.table + " (ID BIGINT NOT NULL generated always as identity  primary key, VALUE STRING NOT NULL)"
@@ -47,28 +51,40 @@ class Load():
     sql = "insert into " + self.table.upper() + " (value) values ('" + value + "');"
     self.dbconn.execute(sql, autocommit = True)
   def load_threader (self, ratio):
-    while self.runload:
-      ratios = ratio.split(":")
-      #Selects
-      for i in range(0, int(ratios[0])):
-        count = self.__count()
-        startrow = random.randrange(1, count)
-        rowrange = random.randrange(0, count - startrow)
-        sql = "SELECT * FROM " + self.table + " LIMIT " + str(startrow) + "," + str(rowrange)
-        self.dbconn.execute(sql)
-        self.query_info['select'] += 1
-      #Inserts
-      for i in range(0, int(ratios[1])):
-        self.insert()
-        self.query_info['insert'] += 1
-      #Updates
-      for i in range(0, int(ratios[2])):
-        self.update()
-        self.query_info['update'] += 1
-      #deletes
-      for i in range(0, int(ratios[3])):
-        self.delete()
-        self.query_info['delete'] += 1
+    if self.file == None:
+      while self.runload:
+        ratios = ratio.split(":")
+        #Selects
+        for i in range(0, int(ratios[0])):
+          count = self.__count()
+          startrow = random.randrange(1, count)
+          rowrange = random.randrange(0, count - startrow)
+          sql = "SELECT * FROM " + self.table + " LIMIT " + str(startrow) + "," + str(rowrange)
+          self.dbconn.execute(sql)
+          self.query_info['select'] += 1
+        #Inserts
+        for i in range(0, int(ratios[1])):
+          self.insert()
+          self.query_info['insert'] += 1
+        #Updates
+        for i in range(0, int(ratios[2])):
+          self.update()
+          self.query_info['update'] += 1
+        #deletes
+        for i in range(0, int(ratios[3])):
+          self.delete()
+          self.query_info['delete'] += 1
+    else:
+      # Run arbitrary sql load from file
+      with open(self.file) as f:
+        for line in f:
+          self.dbconn.execute(line, autocommit = True)
+          action = line.split(" ")[0].lower()
+          if action in self.query_info:
+            self.query_info[action] += 1
+          else:
+            self.query_info[action] = 1
+              
     self.query_info['stop_time'] = calendar.timegm(time.gmtime())
 	    	
   def start_load(self, thread_ratio="1:1:1:1"):

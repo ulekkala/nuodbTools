@@ -19,6 +19,7 @@ parser.add_argument("-b", "--broker", dest='broker', action='store', help="A run
 parser.add_argument("-u", "--user", dest='user', action='store', help="Database username", required = True )
 parser.add_argument("-p", "--password", dest='password', action='store', help="Database Password", required = True )
 parser.add_argument("-t", "--threads", dest='threads', action='store', help="Number of workers", type=int, default=1)
+parser.add_argument("-f", "--file", dest='file', action='store', help="SQL file to use as import")
 parser.add_argument("-d", "--duration", dest='duration', action='store', help="How many seconds to run", type=int, default=10)
 parser.add_argument("-s", "--schema", dest='schema', action='store', help="What DB schema to use", default="USER")
 parser.add_argument("-r", "--ratio", dest='ratio', action='store', help="Ratio of SELECT:INSERT:UPDATE:DELETE", default="5:2:1:1")
@@ -38,15 +39,17 @@ updates = 0
 deletes = 0
 for mythread in range(1, threads+1):
   print "Initiating connection " + str(mythread)
-  loadgen = nuodbTools.cluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema}, initial_rows = int(args.initial_rows), value_length = int(args.value_length))
+  loadgen = nuodbTools.cluster.Load("loader" + str(mythread), args.database, args.broker, args.user, args.password, {'schema': args.schema}, initial_rows = int(args.initial_rows), value_length = int(args.value_length), file=args.file)
   thread_tracker.append(loadgen)
 for each_thread in thread_tracker:
   each_thread.start_load(ratio)
-print "waiting for " + str(how_long_to_run) + " seconds"
-for i in range(0, how_long_to_run):
-  sys.stdout.write(".")
-  time.sleep(1)
-for each_thread in thread_tracker:
+if args.file == None: 
+  print "waiting for " + str(how_long_to_run) + " seconds"
+  for i in range(0, how_long_to_run):
+    sys.stdout.write(".")
+    time.sleep(1)
+for idx, each_thread in enumerate(thread_tracker):
+  print "Waiting for thread %s completion..." % str(idx+1)
   result = each_thread.stop_load()
   each_thread.close()
   selects += result['select']
