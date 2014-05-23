@@ -1,46 +1,82 @@
 import boto.ec2
+import boto.vpc
+import traceback
 
 class Zone:
-    def __init__(self, name):
+    def __init__(self, name, vpc_id = None):
         self.name = name
-    def connect(self, aws_access_key, aws_secret):
-        self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
-        return self.connection
-    def edit_security_group(self, name, description="EMPTY", rules=[]):
-        errorstr = ""
-        exists = False
+        self.vpc_id = vpc_id
         
+    def connect(self, aws_access_key, aws_secret):
+      self.aws_access_key = aws_access_key
+      self.aws_secret = aws_secret
+      self.connection = boto.ec2.connect_to_region(self.name, aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret)
+      # Test out our credentials
+      try:
+        self.connection.get_all_key_pairs()
+      except:
+        print "Unable to connect to AWS zone %s with credentials provided. Please check the credentials and try again." % self.name
+        exit(2)
+      return self.connection
+      
+    def edit_security_group(self, name, description="EMPTY", rules=[], vpc_id = None):
+      errorstr = ""
+      exists = False
+        
+      if vpc_id == "all":
+        vpc_ids = []
+        subnets = self.get_subnets()
+        for subnet in subnets:
+          if subnets[subnet]['vpc_id'] not in vpc_ids:
+            vpc_ids.append(subnets[subnet]['vpc_id'])
+      elif vpc_id != None:
+        vpc_ids = [vpc_id]
+      else:
+        vpc_ids = [self.vpc_id]
+        
+      for vpc_id in vpc_ids:
         for security_group in self.connection.get_all_security_groups():
-            if security_group.name == name:
+            if security_group.name == name and security_group.vpc_id == vpc_id:
                 securityGroup = security_group
                 exists = True
         if not exists:
-            securityGroup = self.connection.create_security_group(name, description)
+          securityGroup = self.connection.create_security_group(name, description, vpc_id=vpc_id)
         for rule in rules:
-            try:
-                self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
-            except Exception, e:
-                print e
-    def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip, src_group=None, dry_run=None):
+          try:
+            if rule['cidr_ip'] == "self":
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], src_group=securityGroup)
+            else:
+              self.__add_security_group_rule(securityGroup=securityGroup, protocol=rule['protocol'], from_port=rule['from_port'], to_port=rule['to_port'], cidr_ip=rule['cidr_ip'])
+          except:
+            pass
+      return securityGroup
+      
+    def __add_security_group_rule(self, securityGroup, protocol, from_port, to_port, cidr_ip = None, src_group=None, dry_run=None):
+      if src_group != None:
+        securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, src_group = src_group)
+      else:
         securityGroup.authorize(ip_protocol=protocol, from_port=from_port, to_port=to_port, cidr_ip=cidr_ip)
+        
     @property
     def amis(self):
       if not hasattr(self, 'amis_cached'):
         self.amis_cached = self.connection.get_all_images(owners=["self", "802164393885", "amazon"])
       return self.amis_cached
+    
     def get_keys(self):
       return self.connection.get_all_key_pairs()
+        
     def get_security_groups(self):
       return self.connection.get_all_security_groups()
-    def get_subnets(self):
+    
+    def get_subnets(self, vpc_id = None):
       subnets = {}
-      networkinterfaces = self.connection.get_all_network_interfaces()
-      for networkinterface in networkinterfaces:
-        id = networkinterface.subnet_id
-        subnets[id] = {}
-        for arg in networkinterface.__dict__:
-          subnets[id][arg] = networkinterface.__dict__[arg]
+      vpc_conn = boto.vpc.VPCConnection(aws_access_key_id=self.aws_access_key, aws_secret_access_key=self.aws_secret, region=boto.ec2.get_region(self.name))
+      for subnet in vpc_conn.get_all_subnets():
+        if vpc_id == None or subnet.vpc_id == vpc_id:
+          subnets[subnet.id] = subnet.__dict__
       return subnets
+    
     @property
     def instances(self):
       instances = []
@@ -53,6 +89,18 @@ class Zone:
             i['name'] = ""
           instances.append(i)
       return instances
+    
+    @property
+    def instance_types(self):
+      return self.connection.get_all_instance_types()
+    
+    @property
+    def regions(self):
+      return boto.ec2.regions()
+    
+    @property
+    def security_groups(self):
+      return self.connection.get_security_groups()
     @property
     def snapshots(self):
       return self.connection.get_all_snapshots(owner="self")

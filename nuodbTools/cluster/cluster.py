@@ -21,7 +21,7 @@ class Cluster:
                  domain_name="domain", 
                  domain_password="bird", 
                  enable_monitoring = True,
-                 instance_type = "m1.large", 
+                 instance_type = "m3.large", 
                  nuodb_license = "", 
                  ssh_key = "", 
                  ssh_keyfile = None):
@@ -90,7 +90,10 @@ class Cluster:
         chef_data["nuodb"]['automationTemplate'] = "Minimally Redundant"
         chef_data["nuodb"]['altAddr'] = "" # Populate this at boot time
         chef_data["nuodb"]['region'] = zone
-        chef_data["nuodb"]['monitoring'] = {"enable": True, "alert_email": self.alert_email}
+        if self.alert_email != None and "@" in self.alert_email:
+          chef_data["nuodb"]['monitoring'] = {"enable": True, "alert_email": self.alert_email}
+        else:
+          chef_data["nuodb"]['monitoring'] = {"enable": False, "alert_email": ""}
         chef_data['nuodb']['license'] = self.nuodb_license
         chef_data["nuodb"]['domain_name'] = self.domain_name
         chef_data["nuodb"]['domain_password'] = self.domain_password
@@ -110,19 +113,20 @@ class Cluster:
                                              isBroker = isBroker, ssh_key = self.ssh_key, ssh_keyfile = self.ssh_keyfile)
       return host
 
-    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False):
+    def __boot_host(self, host, zone, instance_type = None, wait_for_health = False, ebs_optimized = False):
       if instance_type == None:
         instance_type = self.instance_type
       stub = self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]
       template_vars = dict(
                           hostname = host,
-                          chef_json = json.dumps(stub['chef_data'])
+                          chef_json = json.dumps(stub['chef_data']),
+                          email_address = self.alert_email
                           )
       f = open("/".join([os.path.dirname(os.path.abspath(inspect.stack()[0][1])), "templates", "init.py"]))
       template = string.Template(f.read())
       f.close()
       userdata = template.substitute(template_vars)
-      obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata)
+      obj = stub['obj'].create(ami=stub['ami'], instance_type=instance_type, security_group_ids=stub['security_group_ids'], subnet = stub['subnet'], getPublicAddress = True, userdata = userdata, ebs_optimized=ebs_optimized)
       print ("Waiting for %s to start" % obj.name),
       if obj.status() != "running":
         print("."),
@@ -137,7 +141,7 @@ class Cluster:
         count = 0
         tries = 60
         wait = 10
-        print "Waiting for agent on %s " % obj.name
+        print "Waiting for agent on %s (%s)" % (obj.name, obj.ext_ip)
         while not healthy or count == tries:
           if obj.agent_running():
             healthy = True
@@ -163,7 +167,7 @@ class Cluster:
       if zone not in self.db['customers'][self.cluster_name]['zones']:
         self.db['customers'][self.cluster_name]['zones'][zone] = {"hosts": {}, "brokers": []}
         
-    def create_cluster(self):
+    def create_cluster(self, ebs_optimized = False):
       for host in self.get_hosts():
         obj = self.get_host(host)
         zone = obj.region
@@ -184,7 +188,7 @@ class Cluster:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
-        self.__boot_host(host, zone, wait_for_health = wait_for_health)
+        self.__boot_host(host, zone, wait_for_health = wait_for_health, ebs_optimized = ebs_optimized)
       if self.dns_emulate:
         self.set_dns_emulation()
 
@@ -274,7 +278,7 @@ class Cluster:
         while not host.is_port_available(22):
           print ("."),
           time.sleep(5)
-        print
+        print ("Setting /etc/hosts on %s..." % host.name)
         for line in host_list:
           hostname = line[0]
           ip = line[1]
@@ -282,6 +286,7 @@ class Cluster:
           (rc, stdout, stderr) = host.execute_command(command)
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
+        print "Restarting services..."
         host.agent_action(action = "restart")
         host.webconsole_action(action = "restart")
       
@@ -304,4 +309,13 @@ class Cluster:
      
 class Error(Exception):
   pass 
-        
+
+class Unbuffered(object):
+  def __init__(self, stream):
+    self.stream = stream
+  def write(self, data):
+    self.stream.write(data)
+    self.stream.flush()
+  def __getattr__(self, attr):
+    return getattr(self.stream, attr)
+
