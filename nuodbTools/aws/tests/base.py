@@ -31,6 +31,7 @@ class Base(unittest.TestCase):
   @classmethod
   def setUpClass(cls):
     # Create the host
+    print "Working in zone %s" % aws_region
     cls._zone = nuodbTools.aws.Zone(name=aws_region, vpc_id=aws_vpc_id)
     cls._ec2Connection = cls._zone.connect(aws_access_key = aws_access_key, aws_secret=aws_secret)
     subnets = cls._zone.get_subnets(vpc_id = aws_vpc_id)
@@ -55,13 +56,20 @@ class Base(unittest.TestCase):
   @classmethod
   def tearDownClass(cls):
     cls._host.terminate()
+  
+  def getDevices(self):
+    devices = []
+    for reservation in self._ec2Connection.get_all_instances(instance_ids=[self._host.instance.id]):
+      for instance in reservation.instances:
+        for device in instance.block_device_mapping:
+          devices.append(device)
+    return sorted(devices)
 
   def test_ephemeral_disk(self):
     if aws_instance_type != "t1.micro":
       self.assertEqual(self._host.execute_command("ls /dev | grep xvdb")[0], 0)
   
   def test_mounts(self):
-    print self._host.volume_mounts
     self.assertTrue(True)
     
   def test_scp_file(self):
@@ -83,8 +91,6 @@ class Base(unittest.TestCase):
   def test_add_subtract_volume(self):
     self._host.attach_volume(1, "/mount/unittest")
     self.assertTrue(self._host.detach_volume("/mount/unittest", delete=True))
-  
-  
     
 if __name__ == "__main__":
   unittest.main()
