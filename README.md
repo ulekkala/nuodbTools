@@ -27,7 +27,7 @@
 ### Usage
 #### Prerequisites
   * OSX
-    * [Installation instructions can be found here](
+    * [Installation instructions can be found here](http://doc.nuodb.com/display/doc/Installing+nuodbTools+on+OSX)
   * Fedora
     * `sudo yum -y install git python-devel python-pip`
   * Ubuntu
