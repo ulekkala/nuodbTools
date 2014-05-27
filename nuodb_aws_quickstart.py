@@ -317,13 +317,12 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
     for key in static_config:
       if key in params:
         params[key]['default'] = static_config[key]
+      if key in verbose_params:
+        verbose_params[key]['default'] = static_config[key]
     
     if config_file == None:
       # If the customer doesn't give us a config file prompt for everything
       for key in sorted(params.keys()):
-        # if len(str(params[key]['default'])) > 30:
-        #  default = str(params[key]['default'])[0:27] + "..."
-        # else:
         default = str(params[key]['default'])
         val = raw_input("%s [%s] " % (params[key]['prompt'], default))
         if len(val) == 0:
@@ -358,6 +357,21 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
       
       if advanced_mode:
         # ## Populate zone data
+        for key in sorted(verbose_params.keys()):
+          default = str(verbose_params[key]['default'])
+          val = raw_input("%s [%s] " % (verbose_params[key]['prompt'], default))
+          if len(val) == 0:
+            c[key] = verbose_params[key]['default']
+          elif len(val.strip()) == 0:
+            c[key] = None
+          else:
+            if "accept" in verbose_params[key]:
+              regex = re.compile(verbose_params[key]['accept'])
+              while not regex.match(val.strip()):
+                print "ERROR: " + verbose_params[key]['input_error']
+                val = raw_input("%s [%s] " % (verbose_params[key]['prompt'], default))
+            c[key] = val.strip()
+            
         if "zones" in static_config:
           print "Found this zone info:"
           for zone in sorted(static_config["zones"].keys()):
@@ -458,8 +472,13 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
     if not healthy:
       print "Gave up trying after %s seconds. Check the server" % str(wait)
     else:
-      print "You can now access the console at %s " % str(good_host)
+      print "======================================================================="
+      print "SUCCESS."
+      print "You can now access the web console at %s " % str(good_host)
       print "Other nodes may still be booting and will join the cluster eventually."
+      print "For hints and tips on how to operate your new cluster visit the docs at"
+      print "http://doc.nuodb.com/display/doc/Next+steps+with+your+NuoDB+cluster"
+      print "======================================================================="
     
   ########################
   #### Terminate a cluster

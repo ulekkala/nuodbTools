@@ -26,6 +26,8 @@
 <a name="usage"></a>
 ### Usage
 #### Prerequisites
+  * OSX
+    * [Installation instructions can be found here](
   * Fedora
     * `sudo yum -y install git python-devel python-pip`
   * Ubuntu
@@ -37,9 +39,7 @@
 #### Installation
 * Run the following from the command line
 ```
-git clone https://github.com/nuodb/nuodbTools.git
-cd nuodbTools
-sudo python setup.py install
+sudo pip install nuodbTools
 ```
 * Run the tool of your choice:
   * [`nuodb_aws_quickstart.py`](nuodb_aws_quickstart.md)
