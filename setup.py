@@ -4,7 +4,7 @@ import sys
 v = sys.version_info
 if v[0] == 2 and v[1] == 7:
   setup(name='nuodbTools',
-        version='0.1.0',
+        version='0.1.1',
         description='Various tools to deploy, manintain and monitor NuoDB',
         url='http://github.com/nuodb/nuodbTools',
         author='NuoDB Inc.',
@@ -12,7 +12,7 @@ if v[0] == 2 and v[1] == 7:
         data_files=[('nuodbTools/cluster/templates', ['nuodbTools/cluster/templates/init.py'])],
         install_requires=["boto", "paramiko", "pynuodb", "requests"],
         license='BSD licence, see LICENCE.txt',
-        packages=['nuodbTools', 'nuodbTools.aws', 'nuodbTools.cluster', 'nuodbTools.physical'],
+        packages=['nuodbTools'],
         scripts=["nuodb_backup.py", "nuodb_aws_quickstart.py", "nuodb_load.py", "nuodb_tarball_installer.py"],
         zip_safe=False)
 else:
