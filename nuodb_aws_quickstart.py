@@ -297,7 +297,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
             "domain_password": {"default": "bird", "prompt": "What is the admin password of your NuoDB domain?"},
             "host_prefix": {"default": "host", "prompt": "What string should preface the number of each host? (ex. {host}0.mycluster.region.nuoDB)", "accept": "^[A-Za-z]$", "input_error": "Please enter a series of only letters and numbers"},
             "license": {"default": "", "prompt": "Please enter your NuoDB license- or leave empty for development version:"},
-            "load_drivers": {"default" : 0, "prompt": "How many extra hosts do you want in each region for load driving?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
+            "load_drivers": {"default" : 0, "prompt": "How many extra hosts (that do not join the cluster) do you want in each region for load driving?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "brokers_per_zone": {"default" : 1, "prompt": "How many brokers do you want in each region?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "custom_rpm" : {"default" : "", "prompt": "Use alternative installation package? Empty for default: "}
           }
@@ -442,6 +442,10 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         root_name = c['host_prefix'] + str(i)
         myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'])  # Mark the number of nodes to be created
         print "Added %s" % myserver
+      for i in range(0, int(c['load_drivers'])):
+        root_name = "load" + str(i)
+        myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'], start_services = False)  # Mark the number of nodes to be created
+        print "Added %s" % myserver
     
     print "Booting the cluster"
     mycluster.create_cluster(ebs_optimized=ebs_optimized)  # Actually spins up the nodes.
@@ -459,7 +463,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
     while i < wait:
       if not healthy:
         for host_id in hosts:
-          obj = mycluster.get_host(host_id)
+          obj = mycluster.get_host(host_id)['obj']
           host = mycluster.get_host_address(host_id)
           url = "http://%s:%s" % (host, obj.web_console_port)
           if not healthy:
@@ -519,6 +523,9 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         for i in range(0, z['servers']):
           root_name = c['host_prefix'] + str(i)
           myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'])  # Mark the number of nodes to be created
+        for i in range(0, int(c['load_drivers'])):
+          root_name = "load" + str(i)
+          myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'], start_services = False)  # Mark the number of nodes to be created
       mycluster.terminate_hosts()
       if not mycluster.dns_emulate:
         res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y", "n"])
