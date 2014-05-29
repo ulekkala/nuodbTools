@@ -123,8 +123,12 @@ try:
   i = 410
   oldmode=None
   mode="hosts"
+  render_time = 0
+  render_times = []
   while i != 101:
     mytime = int(time.time()) * 1000
+    start_time = time.time()
+    
     if i == 410:
       # redraw screen
       height, width = size()
@@ -151,11 +155,6 @@ try:
       windows['left'].clear()
       windows['left'].writeline("Loading...", curses.color_pair(4))
       windows['left'].refresh()
-    
-    if args.debug:
-      # Reset the bottom
-      windows['footer'].clear()
-      windows['footer'].writeline("Iteration %d. Time is %d. Input is %s. Mode is %s. %dx%d" % (iteration, int(time.time()), str(i), mode, height, width))
     
     for window in windows:
       windows[window].refresh()
@@ -204,6 +203,8 @@ try:
       rows.append([("UNIX TIME", curses.A_BOLD), str(int(time.time()))])
       rows.append([("ITERATION", curses.A_BOLD), str(iteration)])
       rows.append([("CONSOLE SIZE", curses.A_BOLD), "%d x %d" % size()])
+      rows.append([("LAST RENDER TIME", curses.A_BOLD), str(int(render_time))])
+      rows.append([("AVG RENDER TIME", curses.A_BOLD), str(int(sum(render_times)/len(render_times)))])
       
     elif mode =="databases":
       ################
@@ -361,7 +362,14 @@ try:
             row.append("?")
           rows.append(row)
           
-    
+    end_time = time.time()
+    if mode != "info":
+      render_time = end_time - start_time
+      render_times.append(int(render_time))
+    if args.debug:
+      # Reset the bottom
+      windows['footer'].clear()
+      windows['footer'].writeline("page render time: %d" % render_time)
     windows['left'].clear()
     windows['left'].write_table(rows)
     windows['left'].refresh()
