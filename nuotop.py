@@ -15,9 +15,12 @@ import curses
 
 def assemble_databases(domain):
   rows = []
+  mytime= time.time() * 1000
   try:
     databases = request(domain=domain, path="/databases")
     regions = request(domain=domain, path="/regions")
+    commits = request(domain=domain, path="/domain/stats?metric=Commits&start=%d&stop=%d&breakdown=db" % (mytime-10000, mytime))
+    connections = request(domain=domain, path="/domain/stats?metric=ClientCncts&start=%d&stop=%d&breakdown=db" % (mytime-10000, mytime))
   except:
     pass
   # assemble data structure
@@ -40,7 +43,9 @@ def assemble_databases(domain):
                ("#REG", curses.A_REVERSE),
                ("#SM", curses.A_REVERSE),
                ("#TE", curses.A_REVERSE),
-               ("TEMPLATE", curses.A_REVERSE)
+               ("TEMPLATE", curses.A_REVERSE),
+               ("#CMTS", curses.A_REVERSE),
+               ("#CON", curses.A_REVERSE)
                ])
   for database in databases:
     row = []
@@ -62,12 +67,20 @@ def assemble_databases(domain):
     row.append(str(sm_count))
     row.append(str(te_count))
     row.append(database['template']['name'])
+    if database['name'] in commits:
+      row.append(average_metric(commits[database['name']], red_threshold=9999999999, yellow_threshold=9999999999, format="int"))
+    else:
+      row.append("?")
+    if database['name'] in connections:
+      row.append(latest_metric(connections[database['name']], red_threshold=9999999999, yellow_threshold=9999999999, format="int"))
+    else:
+      row.append("?")
     rows.append(row)
   return rows
 
 def assemble_hosts(domain):
   rows = []
-  mytime= time.time()
+  mytime= time.time() * 1000
   regions = request(domain=domain, path="/regions")
   cpu = request(domain=domain, path="/domain/stats?metric=OS-cpuTotalTimePercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
   memory = request(domain=domain, path="/domain/stats?metric=OS-memUsedPercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
@@ -188,7 +201,7 @@ def assemble_queries(domain):
     rows.append(row)
   return rows
 
-def average_metric(data, length=4, red_threshold=90, yellow_threshold=75):
+def average_metric(data, length=4, red_threshold=90, yellow_threshold=75, format = None):
   acc = 0
   for measurement in data:
     acc += measurement['value']
@@ -199,9 +212,12 @@ def average_metric(data, length=4, red_threshold=90, yellow_threshold=75):
     attr = curses.color_pair(2)
   else:
     attr = curses.color_pair(1)
-  return (str(avg)[0:length], attr)
+  if format == "int":
+    return (str(int(avg))[0:length], attr)
+  else:
+    return (str(avg)[0:length], attr)
 
-def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_threshold=75):
+def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_threshold=75, format = None):
   timestamp = 0
   value = default
   for measurement in data:
@@ -213,7 +229,10 @@ def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_thresh
     attr = curses.color_pair(2)
   else:
     attr = curses.color_pair(1)
-  return (str(value)[0:length], attr)
+  if format == "int":
+    return (str(int(value))[0:length], attr)
+  else:
+    return (str(value)[0:length], attr)
 
 def request(domain, action="GET", path = "/", data= None, timeout=3 ):
   try:
