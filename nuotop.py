@@ -13,7 +13,12 @@ import struct
 import traceback
 import curses
 
-
+def request(domain, action="GET", path = "/", data= None, timeout=3 ):
+  try:
+    return domain.rest_req(action, path, data, timeout)
+  except:
+    return {}
+  
 def size():
   lines, cols = struct.unpack('hh',  fcntl.ioctl(sys.stdout, termios.TIOCGWINSZ, '1234'))
   return (lines,cols)
@@ -44,10 +49,8 @@ class Window:
     self.width=width
     self.object.resize(height, width)
   def write(self, string, attr = 0):
-    self.object.addstr(self.line, self.col, string, attr)
-    if self.col + len(string) >= self.width:
-      self.newline()
-    else:
+    if self.col + len(string) <= width:
+      self.object.addstr(self.line, self.col, string, attr)
       self.col = self.col + len(string)
   def writeline(self, string, attr = 0):
     self.object.addstr(self.line, 0, string, attr)
@@ -106,7 +109,7 @@ rest_url = "http://%s:%s/api" % (host, str(port))
 iteration = 0 
 try:
   domain = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username = user, rest_password = password)
-  domain.rest_req(path="/databases")
+  request(domain=domain, path="/databases")
 except:
   print "ERROR: Unable to access REST service at %s:%s. Please check your configuration and try aagin." % ( host, port )
   exit (2)
@@ -154,7 +157,7 @@ try:
     if oldmode != mode:
       windows['left'].clear()
       windows['left'].writeline("Loading...", curses.color_pair(4))
-      windows['left'].refresh()
+      windows['footer'].clear()
     
     for window in windows:
       windows[window].refresh()
@@ -213,8 +216,8 @@ try:
       
       # Fetch data
       try:
-        databases = domain.rest_req(path="/databases")
-        regions = domain.rest_req(path="/regions")
+        databases = request(domain=domain, path="/databases")
+        regions = request(domain=domain, path="/regions")
       except:
         pass
       # assemble data structure
@@ -273,8 +276,8 @@ try:
                  ("TYPE", curses.A_REVERSE),
                  ("PID", curses.A_REVERSE)
                  ])
-      databases = domain.rest_req(path="/databases")
-      hosts = domain.rest_req(path="/hosts")
+      databases = request(domain=domain, path="/databases")
+      hosts = request(domain=domain, path="/hosts")
       for database in databases:
         for process in database['processes']:
           row = []
@@ -295,9 +298,9 @@ try:
                    ("DATABASE", curses.A_REVERSE)
                    ])
       active_queries = []
-      databases = domain.rest_req(path="/databases")
+      databases = request(domain=domain, path="/databases")
       for database in databases:
-        queries = domain.rest_req(path="/databases/%s/queries" % database['name'])
+        queries = request(domain=domain, path="/databases/%s/queries" % database['name'])
         for query in queries:
           if "statement" in query and 'statementHandle' in query and query['statementHandle'] >= 0:
             active_queries.append((query['time'], query['statement'], query['username'], database['name']))
@@ -324,15 +327,14 @@ try:
       ############
       # HOSTS VIEW
       ############
-      regions = domain.rest_req(path="/regions")
-      cpu = domain.rest_req(path="/domain/stats?metric=OS-cpuTotalTimePercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
-      memory = domain.rest_req(path="/domain/stats?metric=OS-memUsedPercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
-      conns = domain.rest_req(path="/domain/stats?metric=ClientCncts&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+      regions = request(domain=domain, path="/regions")
+      cpu = request(domain=domain, path="/domain/stats?metric=OS-cpuTotalTimePercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+      memory = request(domain=domain, path="/domain/stats?metric=OS-memUsedPercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+      conns = request(domain=domain, path="/domain/stats?metric=ClientCncts&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
       
       rows.append([
                    ("HOSTNAME", curses.A_REVERSE), 
                    ("REGION", curses.A_REVERSE), 
-                   ("B", curses.A_REVERSE),
                    ("IPADDR", curses.A_REVERSE), 
                    ("PORT", curses.A_REVERSE), 
                    ("#PRC", curses.A_REVERSE), 
@@ -344,12 +346,11 @@ try:
         region_name = region['region']
         for host in sorted(region['hosts'], key=lambda host: host['hostname']):
           row = []
-          row.append((host['hostname'], curses.A_BOLD))
-          row.append(region_name)
           if host['isBroker']:
-            row.append(("Y", curses.color_pair(1)))
+            row.append((host['hostname'], curses.color_pair(1)))
           else:
-            row.append(("n", curses.color_pair(0)))
+            row.append((host['hostname'], curses.A_BOLD))
+          row.append(region_name)
           row.append((host['ipaddress'], curses.A_BOLD))
           row.append(str(host['port']))
           row.append((str(len(host['processes'])), curses.A_BOLD))
@@ -366,6 +367,11 @@ try:
           else:
             row.append("?")
           rows.append(row)
+      windows['footer'].clear()
+      windows['footer'].write("Hostnames in ")
+      windows['footer'].write("GREEN", curses.color_pair(1))
+      windows['footer'].write(" are brokers")
+      
           
     end_time = time.time()
     if mode != "info":
