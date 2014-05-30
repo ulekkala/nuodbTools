@@ -13,6 +13,208 @@ import struct
 import traceback
 import curses
 
+def assemble_databases(domain):
+  rows = []
+  try:
+    databases = request(domain=domain, path="/databases")
+    regions = request(domain=domain, path="/regions")
+  except:
+    pass
+  # assemble data structure
+  processes = {}
+  for region in regions:
+    region_name = region['region']
+    for host in region['hosts']:
+      for process in host['processes']:
+        if process['dbname'] not in processes:
+          processes[process['dbname']] = {}
+        if region_name not in processes[process['dbname']]:
+          processes[process['dbname']][region_name] = {}
+        if host['hostname'] not in processes[process['dbname']][region_name]:
+          processes[process['dbname']][region_name][host['hostname']] = {"SM": 0, "TE":0}
+        processes[process['dbname']][region_name][host['hostname']][process['type']] +=1
+        
+  rows.append([
+               ("DATABASE", curses.A_REVERSE),
+               ("STATUS", curses.A_REVERSE),
+               ("#REG", curses.A_REVERSE),
+               ("#SM", curses.A_REVERSE),
+               ("#TE", curses.A_REVERSE),
+               ("TEMPLATE", curses.A_REVERSE)
+               ])
+  for database in databases:
+    row = []
+    if database['active'] and database['ismet']:
+      attr = curses.color_pair(1)
+    elif database['active']:
+      attr = curses.color_pair(2)
+    else:
+      attr = curses.color_pair(3)
+    row.append((database['name'], attr))
+    row.append(database['status'])
+    row.append(str(len(processes[database['name']])))
+    sm_count = 0
+    te_count = 0
+    for region in processes[database['name']]:
+      for host in processes[database['name']][region]:
+        sm_count += processes[database['name']][region][host]['SM']
+        te_count += processes[database['name']][region][host]['TE']
+    row.append(str(sm_count))
+    row.append(str(te_count))
+    row.append(database['template']['name'])
+    rows.append(row)
+  return rows
+
+def assemble_hosts(domain):
+  rows = []
+  mytime= time.time()
+  regions = request(domain=domain, path="/regions")
+  cpu = request(domain=domain, path="/domain/stats?metric=OS-cpuTotalTimePercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+  memory = request(domain=domain, path="/domain/stats?metric=OS-memUsedPercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+  conns = request(domain=domain, path="/domain/stats?metric=ClientCncts&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
+  
+  rows.append([
+               ("HOSTNAME", curses.A_REVERSE), 
+               ("REGION", curses.A_REVERSE), 
+               ("IPADDR", curses.A_REVERSE), 
+               ("PORT", curses.A_REVERSE), 
+               ("#PRC", curses.A_REVERSE), 
+               ("%CPU", curses.A_REVERSE), 
+               ("%MEM", curses.A_REVERSE), 
+               ("#CON", curses.A_REVERSE)
+              ])
+  for region in regions:
+    region_name = region['region']
+    for host in sorted(region['hosts'], key=lambda host: host['hostname']):
+      row = []
+      if host['isBroker']:
+        row.append((host['hostname'], curses.color_pair(1)))
+      else:
+        row.append((host['hostname'], curses.A_BOLD))
+      row.append(region_name)
+      row.append((host['ipaddress'], curses.A_BOLD))
+      row.append(str(host['port']))
+      row.append((str(len(host['processes'])), curses.A_BOLD))
+      if host['id'] in cpu:
+        row.append(average_metric(cpu[host['id']]))
+      else:
+        row.append("?")
+      if host['id'] in memory:
+        row.append(average_metric(memory[host['id']]))
+      else:
+        row.append("?")
+      if host['id'] in conns:
+        row.append(latest_metric(conns[host['id']], default=0))
+      else:
+        row.append("?")
+      rows.append(row)
+  return rows
+
+def assemble_info(domain):
+  rows = []
+  rows.append([
+               ("KEY", curses.A_REVERSE),
+               ("VALUE", curses.A_REVERSE)
+               ])
+  items =  args.__dict__
+  for item in items:
+    rows.append([(item.upper(), curses.A_BOLD), items[item]])
+  rows.append([("REST URL", curses.A_BOLD), rest_url])
+  rows.append([("UNIX TIME", curses.A_BOLD), str(int(time.time()))])
+  rows.append([("ITERATION", curses.A_BOLD), str(iteration)])
+  rows.append([("CONSOLE SIZE", curses.A_BOLD), "%d x %d" % size()])
+  rows.append([("LAST RENDER TIME", curses.A_BOLD), str(int(render_time))])
+  rows.append([("AVG RENDER TIME", curses.A_BOLD), str(int(sum(render_times)/len(render_times)))])
+  return rows
+
+def assemble_processes(domain):
+  rows = []
+  rows.append([
+             ("DATABASE", curses.A_REVERSE),
+             ("HOST", curses.A_REVERSE),
+             ("REGION", curses.A_REVERSE),
+             ("PORT", curses.A_REVERSE),
+             ("TYPE", curses.A_REVERSE),
+             ("PID", curses.A_REVERSE)
+             ])
+  databases = request(domain=domain, path="/databases")
+  hosts = request(domain=domain, path="/hosts")
+  for database in databases:
+    for process in database['processes']:
+      row = []
+      row.append((process['dbname'], curses.A_BOLD))
+      row.append(process['hostname'])
+      for host in hosts:
+        if process['agentid'] == host['id']:
+          row.append((host['tags']['region'], curses.A_BOLD))
+      row.append(str(process['port']))
+      row.append((str(process['type']), curses.A_BOLD))
+      row.append(str(process['pid']))
+      rows.append(row)
+  return rows
+
+def assemble_queries(domain):
+  rows = []
+  rows.append([
+               ("QUERY", curses.A_REVERSE),
+               ("TIME", curses.A_REVERSE),
+               ("USER", curses.A_REVERSE),
+               ("DATABASE", curses.A_REVERSE)
+               ])
+  active_queries = []
+  databases = request(domain=domain, path="/databases")
+  for database in databases:
+    queries = request(domain=domain, path="/databases/%s/queries" % database['name'])
+    for query in queries:
+      if "statement" in query and 'statementHandle' in query and query['statementHandle'] >= 0:
+        active_queries.append((query['time'], query['statement'], query['username'], database['name']))
+  for query in sorted(active_queries, reverse=True):
+    # we need to be conscious of query output width. therefore insert possible truncated query at end.
+    line_len = 0
+    row=[]
+    for item in [query[0]/100, query[2], query[3]]:
+      value = str(item)
+      line_len += len(value) + 1
+      row.append(value)
+    statement = str(query[1])
+    statement_width = width - line_len - 4
+    if query[0] > 6000:
+      attr = curses.color_pair(3)
+    elif query[0] > 1000:
+      attr = curses.color_pair(2)
+    else:
+      attr = curses.color_pair(1)
+    row.insert(0, (statement[0:statement_width], attr))
+    rows.append(row)
+  return rows
+
+def average_metric(data, length=4, red_threshold=90, yellow_threshold=75):
+  acc = 0
+  for measurement in data:
+    acc += measurement['value']
+  avg = acc / len(data)
+  if avg > red_threshold:
+    attr = curses.color_pair(3)
+  elif avg > yellow_threshold:
+    attr = curses.color_pair(2)
+  else:
+    attr = curses.color_pair(1)
+  return (str(avg)[0:length], attr)
+
+def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_threshold=75):
+  timestamp = 0
+  value = default
+  for measurement in data:
+    if measurement['timestamp'] > timestamp:
+      value = measurement['value']
+  if value > red_threshold:
+    attr = curses.color_pair(3)
+  elif value > yellow_threshold:
+    attr = curses.color_pair(2)
+  else:
+    attr = curses.color_pair(1)
+  return (str(value)[0:length], attr)
+
 def request(domain, action="GET", path = "/", data= None, timeout=3 ):
   try:
     return domain.rest_req(action, path, data, timeout)
@@ -163,216 +365,21 @@ try:
       windows[window].refresh()
     iteration += 1
     
-    # local helper functions
-    def average_metric(data, length=4, red_threshold=90, yellow_threshold=75):
-      acc = 0
-      for measurement in data:
-        acc += measurement['value']
-      avg = acc / len(data)
-      if avg > red_threshold:
-        attr = curses.color_pair(3)
-      elif avg > yellow_threshold:
-        attr = curses.color_pair(2)
-      else:
-        attr = curses.color_pair(1)
-      return (str(avg)[0:length], attr)
-    def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_threshold=75):
-      timestamp = 0
-      value = default
-      for measurement in data:
-        if measurement['timestamp'] > timestamp:
-          value = measurement['value']
-      if value > red_threshold:
-        attr = curses.color_pair(3)
-      elif value > yellow_threshold:
-        attr = curses.color_pair(2)
-      else:
-        attr = curses.color_pair(1)
-      return (str(value)[0:length], attr)
-    
-    # fetch data
-    
-    rows = []
-            
     if mode == "info":
-      rows.append([
-                   ("KEY", curses.A_REVERSE),
-                   ("VALUE", curses.A_REVERSE)
-                   ])
-      items =  args.__dict__
-      for item in items:
-        rows.append([(item.upper(), curses.A_BOLD), items[item]])
-      rows.append([("REST URL", curses.A_BOLD), rest_url])
-      rows.append([("UNIX TIME", curses.A_BOLD), str(int(time.time()))])
-      rows.append([("ITERATION", curses.A_BOLD), str(iteration)])
-      rows.append([("CONSOLE SIZE", curses.A_BOLD), "%d x %d" % size()])
-      rows.append([("LAST RENDER TIME", curses.A_BOLD), str(int(render_time))])
-      rows.append([("AVG RENDER TIME", curses.A_BOLD), str(int(sum(render_times)/len(render_times)))])
-      
+      rows = assemble_info(domain)
     elif mode =="databases":
-      ################
-      # DATABASE VIEW
-      ################
-      
-      # Fetch data
-      try:
-        databases = request(domain=domain, path="/databases")
-        regions = request(domain=domain, path="/regions")
-      except:
-        pass
-      # assemble data structure
-      processes = {}
-      for region in regions:
-        region_name = region['region']
-        for host in region['hosts']:
-          for process in host['processes']:
-            if process['dbname'] not in processes:
-              processes[process['dbname']] = {}
-            if region_name not in processes[process['dbname']]:
-              processes[process['dbname']][region_name] = {}
-            if host['hostname'] not in processes[process['dbname']][region_name]:
-              processes[process['dbname']][region_name][host['hostname']] = {"SM": 0, "TE":0}
-            processes[process['dbname']][region_name][host['hostname']][process['type']] +=1
-            
-      rows.append([
-                   ("DATABASE", curses.A_REVERSE),
-                   ("STATUS", curses.A_REVERSE),
-                   ("#REG", curses.A_REVERSE),
-                   ("#SM", curses.A_REVERSE),
-                   ("#TE", curses.A_REVERSE),
-                   ("TEMPLATE", curses.A_REVERSE)
-                   ])
-      for database in databases:
-        row = []
-        if database['active'] and database['ismet']:
-          attr = curses.color_pair(1)
-        elif database['active']:
-          attr = curses.color_pair(2)
-        else:
-          attr = curses.color_pair(3)
-        row.append((database['name'], attr))
-        row.append(database['status'])
-        row.append(str(len(processes[database['name']])))
-        sm_count = 0
-        te_count = 0
-        for region in processes[database['name']]:
-          for host in processes[database['name']][region]:
-            sm_count += processes[database['name']][region][host]['SM']
-            te_count += processes[database['name']][region][host]['TE']
-        row.append(str(sm_count))
-        row.append(str(te_count))
-        row.append(database['template']['name'])
-        rows.append(row)
-   
+      rows = assemble_databases(domain)
     elif mode == "processes":
-      ##############
-      # PROCESS VIEW
-      ##############
-      rows.append([
-                 ("DATABASE", curses.A_REVERSE),
-                 ("HOST", curses.A_REVERSE),
-                 ("REGION", curses.A_REVERSE),
-                 ("PORT", curses.A_REVERSE),
-                 ("TYPE", curses.A_REVERSE),
-                 ("PID", curses.A_REVERSE)
-                 ])
-      databases = request(domain=domain, path="/databases")
-      hosts = request(domain=domain, path="/hosts")
-      for database in databases:
-        for process in database['processes']:
-          row = []
-          row.append((process['dbname'], curses.A_BOLD))
-          row.append(process['hostname'])
-          for host in hosts:
-            if process['agentid'] == host['id']:
-              row.append((host['tags']['region'], curses.A_BOLD))
-          row.append(str(process['port']))
-          row.append((str(process['type']), curses.A_BOLD))
-          row.append(str(process['pid']))
-          rows.append(row)
+      rows = assemble_processes(domain)
     elif mode == "queries":
-      rows.append([
-                   ("QUERY", curses.A_REVERSE),
-                   ("TIME", curses.A_REVERSE),
-                   ("USER", curses.A_REVERSE),
-                   ("DATABASE", curses.A_REVERSE)
-                   ])
-      active_queries = []
-      databases = request(domain=domain, path="/databases")
-      for database in databases:
-        queries = request(domain=domain, path="/databases/%s/queries" % database['name'])
-        for query in queries:
-          if "statement" in query and 'statementHandle' in query and query['statementHandle'] >= 0:
-            active_queries.append((query['time'], query['statement'], query['username'], database['name']))
-      for query in sorted(active_queries, reverse=True):
-        # we need to be conscious of query output width. therefore insert possible truncated query at end.
-        line_len = 0
-        row=[]
-        for item in [query[0]/100, query[2], query[3]]:
-          value = str(item)
-          line_len += len(value) + 1
-          row.append(value)
-        statement = str(query[1])
-        statement_width = width - line_len - 4
-        if query[0] > 6000:
-          attr = curses.color_pair(3)
-        elif query[0] > 1000:
-          attr = curses.color_pair(2)
-        else:
-          attr = curses.color_pair(1)
-        row.insert(0, (statement[0:statement_width], attr))
-        rows.append(row)
-        
+      rows = assemble_queries(domain)
     else:
-      ############
-      # HOSTS VIEW
-      ############
-      regions = request(domain=domain, path="/regions")
-      cpu = request(domain=domain, path="/domain/stats?metric=OS-cpuTotalTimePercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
-      memory = request(domain=domain, path="/domain/stats?metric=OS-memUsedPercent&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
-      conns = request(domain=domain, path="/domain/stats?metric=ClientCncts&start=%d&stop=%d&breakdown=host" % (mytime-10000, mytime))
-      
-      rows.append([
-                   ("HOSTNAME", curses.A_REVERSE), 
-                   ("REGION", curses.A_REVERSE), 
-                   ("IPADDR", curses.A_REVERSE), 
-                   ("PORT", curses.A_REVERSE), 
-                   ("#PRC", curses.A_REVERSE), 
-                   ("%CPU", curses.A_REVERSE), 
-                   ("%MEM", curses.A_REVERSE), 
-                   ("#CON", curses.A_REVERSE)
-                  ])
-      for region in regions:
-        region_name = region['region']
-        for host in sorted(region['hosts'], key=lambda host: host['hostname']):
-          row = []
-          if host['isBroker']:
-            row.append((host['hostname'], curses.color_pair(1)))
-          else:
-            row.append((host['hostname'], curses.A_BOLD))
-          row.append(region_name)
-          row.append((host['ipaddress'], curses.A_BOLD))
-          row.append(str(host['port']))
-          row.append((str(len(host['processes'])), curses.A_BOLD))
-          if host['id'] in cpu:
-            row.append(average_metric(cpu[host['id']]))
-          else:
-            row.append("?")
-          if host['id'] in memory:
-            row.append(average_metric(memory[host['id']]))
-          else:
-            row.append("?")
-          if host['id'] in conns:
-            row.append(latest_metric(conns[host['id']], default=0))
-          else:
-            row.append("?")
-          rows.append(row)
+      rows = assemble_hosts(domain)
       windows['footer'].clear()
       windows['footer'].write("Hostnames in ")
       windows['footer'].write("GREEN", curses.color_pair(1))
       windows['footer'].write(" are brokers")
       
-          
     end_time = time.time()
     if mode != "info":
       render_time = end_time - start_time
