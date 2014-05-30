@@ -332,6 +332,7 @@ try:
       rows.append([
                    ("HOSTNAME", curses.A_REVERSE), 
                    ("REGION", curses.A_REVERSE), 
+                   ("B", curses.A_REVERSE),
                    ("IPADDR", curses.A_REVERSE), 
                    ("PORT", curses.A_REVERSE), 
                    ("#PRC", curses.A_REVERSE), 
@@ -341,10 +342,14 @@ try:
                   ])
       for region in regions:
         region_name = region['region']
-        for host in region['hosts']:
+        for host in sorted(region['hosts'], key=lambda host: host['hostname']):
           row = []
           row.append((host['hostname'], curses.A_BOLD))
           row.append(region_name)
+          if host['isBroker']:
+            row.append(("Y", curses.color_pair(1)))
+          else:
+            row.append(("n", curses.color_pair(0)))
           row.append((host['ipaddress'], curses.A_BOLD))
           row.append(str(host['port']))
           row.append((str(len(host['processes'])), curses.A_BOLD))
