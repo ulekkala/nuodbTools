@@ -284,8 +284,8 @@ try:
           row.append((process['dbname'], curses.A_BOLD))
           row.append(process['hostname'])
           for host in hosts:
-              if process['agentid'] == host['id']:
-                row.append((host['tags']['region'], curses.A_BOLD))
+            if process['agentid'] == host['id']:
+              row.append((host['tags']['region'], curses.A_BOLD))
           row.append(str(process['port']))
           row.append((str(process['type']), curses.A_BOLD))
           row.append(str(process['pid']))
