@@ -109,7 +109,7 @@ rest_url = "http://%s:%s/api" % (host, str(port))
 iteration = 0 
 try:
   domain = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username = user, rest_password = password)
-  request(domain=domain, path="/databases")
+  domain.rest_req(path="/databases")
 except:
   print "ERROR: Unable to access REST service at %s:%s. Please check your configuration and try aagin." % ( host, port )
   exit (2)
