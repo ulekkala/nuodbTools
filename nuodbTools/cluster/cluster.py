@@ -77,12 +77,12 @@ class Cluster:
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] =[agent_addr]
         elif len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < int(self.brokers_per_zone):
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
           #self.db['customers'][self.cluster_name]['brokers'].append(agent_addr)
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'].append(agent_addr)
         else:
           isBroker = False
-          chef_data = {"nuodb": {"is_broker": False, "enableAutomation": False, "enableAutomationBootstrap": False}}
+          chef_data = {"nuodb": {"is_broker": False, "enableAutomation": True, "enableAutomationBootstrap": False}}
         #common Chef information
         chef_data["run_list"] = ["recipe[nuodb]"] 
         chef_data['nuodb']["port"] = agentPort
@@ -189,6 +189,8 @@ class Cluster:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
+        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['autoconsole'] = {"brokers": brokers}
+        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['webconsole']= {"brokers": brokers}
         self.__boot_host(host, zone, wait_for_health = wait_for_health, ebs_optimized = ebs_optimized)
       if self.dns_emulate:
         self.set_dns_emulation()
