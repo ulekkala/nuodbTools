@@ -1,6 +1,6 @@
 import boto.ec2
 import boto.route53
-from paramiko import SSHClient, SFTPClient
+import paramiko 
 import base64, inspect, json, os, socket, string, sys, tempfile, time
 
 class Host:
@@ -42,7 +42,11 @@ class Host:
           self.update_data()
     # If tagging doesn't work, try ssh'ing to the machine and getting the info.
     if self.exists == False and self.is_port_available(22, self.name):
-      (r, stdout, stderr) = self.execute_command("curl http://169.254.169.254/latest/meta-data/instance-id")
+      try:
+        (r, stdout, stderr) = self.execute_command("curl http://169.254.169.254/latest/meta-data/instance-id")
+      except paramiko.AuthenticationException:
+        # If we are here then someone else has scooped up the IP address associated with a DNS record of ours. Don't proceed any further.
+        r=1
       if r == 0:
         for reservation in self.ec2Connection.get_all_reservations():
           for instance in reservation.instances:
@@ -167,7 +171,7 @@ class Host:
   def copy(self, local_file, remote_file):    
     if not hasattr(self, 'ssh_connection'):
         self.__get_ssh_connection()
-    sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
+    sftp = paramiko.SFTPClient.from_transport(self.ssh_connection.get_transport())
     sftp.put(local_file, remote_file)
     return True
 
@@ -304,7 +308,7 @@ class Host:
       host = socket.gethostbyname(self.name)
     except:
       host = self.ext_ip
-    self.ssh_connection = SSHClient()
+    self.ssh_connection = paramiko.SSHClient()
     self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
     # self.ssh_connection.load_system_host_keys()
     if self.ssh_keyfile != None:
