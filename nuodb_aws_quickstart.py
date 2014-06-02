@@ -3,8 +3,8 @@
 description = """
 NuoDB AWS cluster quickstart\n
 ============================\n
-This script creates a multiregion sandbox cluster of a given number of nodes in AWS EC2.\n
-This script is not recommended for production use.
+This script creates a multiregion sandbox cluster of a given number of nodes in AWS EC2.
+It is intended for creating a testing platform.
 """
 
 import argparse
@@ -445,7 +445,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
       for i in range(0, int(c['load_drivers'])):
         root_name = "load" + str(i)
         myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'], start_services = False)  # Mark the number of nodes to be created
-        print "Added %s" % myserver
+        print "Added %s as a load driver." % myserver
     
     print "Booting the cluster"
     mycluster.create_cluster(ebs_optimized=ebs_optimized)  # Actually spins up the nodes.
@@ -538,7 +538,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
 
 if __name__ == "__main__":
   sys.stdout = nuodbTools.cluster.Unbuffered(sys.stdout)
-  parser = argparse.ArgumentParser(description=description)
+  parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawTextHelpFormatter)
   parser.add_argument("-a", "--action", dest='action', action='store', help="What action should be take on the cluster", choices=["create", "terminate"], required=True)
   parser.add_argument("--advanced", dest='advanced_mode', action='store_true', help="Use interactive mode to determine envrionment data. For advanced AWS users.", default=False, required=False)
   parser.add_argument("-c", "--config_file", dest='config_file', action='store', help="A configuration file for the cluster", required=False)
