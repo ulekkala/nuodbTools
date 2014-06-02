@@ -155,7 +155,10 @@ def assemble_processes(domain):
   for database in databases:
     for process in database['processes']:
       row = []
-      row.append((process['dbname'], curses.A_BOLD))
+      if process['status'] != "RUNNING":
+        row.append((process['dbname'], curses.color_pair(3)))
+      else:
+        row.append((process['dbname'], curses.color_pair(1)))
       row.append(process['hostname'])
       for host in hosts:
         if process['agentid'] == host['id']:
@@ -390,6 +393,10 @@ try:
       rows = assemble_databases(domain)
     elif mode == "processes":
       rows = assemble_processes(domain)
+      windows['footer'].clear()
+      windows['footer'].write("Processes in ")
+      windows['footer'].write("RED", curses.color_pair(3))
+      windows['footer'].write(" are in nonstandard state")
     elif mode == "queries":
       rows = assemble_queries(domain)
     else:
