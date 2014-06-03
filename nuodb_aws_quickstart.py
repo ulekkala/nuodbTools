@@ -449,10 +449,8 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
     
     print "Booting the cluster"
     mycluster.create_cluster(ebs_optimized=ebs_optimized)  # Actually spins up the nodes.
-    print "Cluster has started up. Here are your brokers:"
-    for broker in mycluster.get_brokers():
-      print broker
-    print
+    print "Cluster has started up"
+
     hosts = mycluster.get_hosts()
     
     print("Waiting for an available web console")
@@ -481,6 +479,9 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
       print "======================================================================="
       print "SUCCESS."
       print "You can now access the web console at %s " % str(good_host)
+      print "Your brokers are:"
+      for broker in mycluster.get_brokers():
+        print "  " + broker
       print "Other nodes may still be booting and will join the cluster eventually."
       print "For hints and tips on how to operate your new cluster visit the docs at"
       print "http://doc.nuodb.com/display/doc/Next+steps+with+your+NuoDB+cluster"
