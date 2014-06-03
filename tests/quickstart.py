@@ -11,7 +11,8 @@ domain_name = str(uuid.uuid4())
 with open(config_file) as f:
   read_config = json.loads(f.read())
   f.close()
-read_config['domain_name'] = domain_name        
+read_config['domain_name'] = domain_name
+read_config['instance_type'] = "m3.medium"    
 unittest_config_handle = tempfile.NamedTemporaryFile(delete = False)
 unittest_config_handle.write(json.dumps(read_config, indent=2))
 unittest_config_file = unittest_config_handle.name
@@ -21,11 +22,11 @@ unittest_config_handle.close()
 class nuodbQuickstartTest(unittest.TestCase):
   @classmethod  
   def setUpClass(cls):
-    cluster(action="create", config_file=unittest_config_file)
+    cluster(action="create", config_file=unittest_config_file, no_prompt=True)
 
   @classmethod
   def tearDownClass(cls):
-    cluster(action="terminate", config_file=unittest_config_file)
+    cluster(action="terminate", config_file=unittest_config_file, no_prompt=True)
 
   @property
   def cluster_members(self):

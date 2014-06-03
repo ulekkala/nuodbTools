@@ -287,7 +287,7 @@ def get_zone_info_automatic(c):
   return r
 
   
-def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, advanced_mode = False):
+def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, advanced_mode = False, no_prompt=False):
   params = {
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?", "accept": "^[A-Za-z0-9]*$", "input_error": "Please check your AWS Access key"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
@@ -533,8 +533,11 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
           myserver = mycluster.add_host(name=root_name, zone=zone, ami=z['ami'], subnets=z['subnets'], security_group_ids=z['security_group_ids'], nuodb_rpm_url=c['custom_rpm'], start_services = False)  # Mark the number of nodes to be created
       mycluster.terminate_hosts()
       if not mycluster.dns_emulate:
-        res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y", "n"])
-        if res == "y":
+        if not no_prompt:
+          res = user_prompt("Delete DNS records too? Do not do this if you will be restarting the cluster soon. (y/n): ", ["y", "n"])
+          if res == "y":
+            mycluster.delete_dns()
+        else:
           mycluster.delete_dns()
       
   else:
