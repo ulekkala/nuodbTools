@@ -289,10 +289,10 @@ def get_zone_info_automatic(c):
   
 def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, advanced_mode = False):
   params = {
-            "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?"},
+            "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?", "accept": "^[A-Za-z0-9]*$", "input_error": "Please check your AWS Access key"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
             "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in Amazon in all the regions you want to start instances:"},
-            "ssh_keyfile": {"default": "/home/USER/.ssh/id_rsa", "prompt": "Enter the location on this local machine of the private key used for ssh. Please use the absolute path: "},
+            "ssh_keyfile": {"default": "%s/.ssh/id_rsa" % os.environ['HOME'], "prompt": "Enter the location on this local machine of the private key used for ssh. Please use the absolute path: "},
             "alert_email" : {"default" : "", "prompt" : "What email address would you like health alerts sent to?", "accept": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$", "input_error": "Please enter a valid email address"}
           }
   verbose_params = {
