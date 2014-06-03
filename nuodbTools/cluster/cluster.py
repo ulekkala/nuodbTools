@@ -220,7 +220,10 @@ class Cluster:
         brokers = []
         for zone in self.get_zones():
           for broker in self.db['customers'][self.cluster_name]['zones'][zone]['brokers']:
-            brokers.append(broker)
+            if self.dns_emulate:
+              brokers.append(self.get_host(broker)['obj'].ext_ip)
+            else:
+              brokers.append(broker)
         return brokers
       except:
         return []

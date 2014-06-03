@@ -179,16 +179,23 @@ class Host:
     if not self.exists:
       if userdata != None:
         self.userdata = userdata
-      interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
-      interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
+      if subnet == None: 
+        #interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids)
+        interface_collection = None
+      else:
+        interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
+        interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
       if instance_type != "t1.micro" and self.ec2Connection.get_image(ami).root_device_type !='instance-store':
         xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
         xvdb.ephemeral_name = 'ephemeral0'
         bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
         bdm['/dev/xvdb'] = xvdb
-        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm) 
       else:
-        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
+        bdm = None
+      if interface_collection != None:
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm)
+      else:
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, security_group_ids=security_group_ids, ebs_optimized=ebs_optimized, block_device_map=bdm) 
       self.exists = True
       for instance in reservation.instances:
         self.instance = instance

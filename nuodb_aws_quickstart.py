@@ -267,7 +267,11 @@ def get_zone_info_automatic(c):
       if subnets[subnet]['state'] == 'available' and subnets[subnet]['defaultForAz'] and not found_subnet: 
         r[region]['subnets'] = [subnets[subnet]['id']]
         r[region]['vpcs'] = [subnets[subnet]['vpc_id']]
-    print "%s: Using %s" % (region, ",".join(r[region]['subnets']))
+    if "subnets" not in r[region]:
+      r[region]['subnets'] = [None]
+      r[region]['vpcs'] = [None]
+    else:
+      print "%s: Using %s" % (region, ",".join(r[region]['subnets']))
     
     security_groups = zone_obj.get_security_groups()
     default_group_exists = False
