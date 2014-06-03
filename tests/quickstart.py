@@ -43,10 +43,14 @@ class nuodbQuickstartTest(unittest.TestCase):
     zones = self.config['zones']
     cluster_name = self.config['domain_name']
     host_prefix =self.config['host_prefix']
+    if self.config['dns_domain'] == "nuodb":
+      dns_domain = "NuoDB"
+    else:
+      dns_domain = self.config['dns_domain']
     for zone in zones:
       cluster_members[zone] = []
       for i in range(0, self.config['zones'][zone]['servers']):
-        cluster_members[zone].append("%s%s.%s.%s.NuoDB" % (host_prefix, str(i), cluster_name, zone))
+        cluster_members[zone].append("%s%s.%s.%s.%s" % (host_prefix, str(i), cluster_name, zone, dns_domain))
     return cluster_members
   
   @property
