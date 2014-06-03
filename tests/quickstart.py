@@ -1,13 +1,22 @@
 import json
 import nuodbTools
+import os
 import tempfile
 import time
 import unittest
 import uuid
 from nuodb_aws_quickstart import cluster 
 
-config_file = "../config.json"
+config_file=None
+config_files = ["../config.json.unittest", "../config.json"]
 domain_name = str(uuid.uuid4())
+for possible_config_file in config_files:
+  if os.path.exists(possible_config_file) and config_file == None:
+    config_file = possible_config_file
+if config_file == None:
+  print "Cannot find a valid config file out of %s" % ",".join(config_files)
+  exit(2)
+  
 with open(config_file) as f:
   read_config = json.loads(f.read())
   f.close()
@@ -33,10 +42,11 @@ class nuodbQuickstartTest(unittest.TestCase):
     cluster_members = {}
     zones = self.config['zones']
     cluster_name = self.config['domain_name']
+    host_prefix =self.config['host_prefix']
     for zone in zones:
       cluster_members[zone] = []
       for i in range(0, self.config['zones'][zone]['servers']):
-        cluster_members[zone].append("db%s.%s.%s.nuoDB" % (str(i), cluster_name, zone))
+        cluster_members[zone].append("%s%s.%s.%s.NuoDB" % (host_prefix, str(i), cluster_name, zone))
     return cluster_members
   
   @property
