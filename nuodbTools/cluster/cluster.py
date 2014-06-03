@@ -34,7 +34,7 @@ class Cluster:
         if not os.path.exists(ssh_keyfile):
           raise Error("Can not find ssh private key %s" % self.ssh_keyfile)
       if dns_domain == None or dns_domain == "None" or dns_domain == "":
-        self.dns_domain = "nuoDB"
+        self.dns_domain = "NuoDB"
         self.dns_emulate = True
       else:
         self.dns_emulate = False
