@@ -351,7 +351,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
   
       #### Get Instance type
       if not advanced_mode:
-        c['instance_type'] = "m3.medium"
+        c['instance_type'] = "m3.large"
       elif "instance_type" not in static_config:
         c['instance_type'] = get_instance_type()
       else:
