@@ -415,14 +415,14 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
     else:
       # Config file given, make sure we have all the info we need
       c = static_config
-      missing_params = []
       for key in params:
         if key not in c:
-          missing_params.append(key)
-      if len(missing_params) > 0:
-        print "Missing the following values from %s: %s" % (config_file, ", ".join(missing_params))
-        exit(2)
-    
+          c[key] = params[key]['default']
+          print "Parameter \"%s\" missing from %s. Using default of \"%s\"" %(key, config_file, str(c[key]))
+      for key in verbose_params:
+        if key not in c:
+          c[key] = verbose_params[key]['default']
+          print "Parameter \"%s\" missing from %s. Using default of \"%s\"" %(key, config_file, str(c[key]))
     
     if debug:
       print json.dumps(c, indent=2)
