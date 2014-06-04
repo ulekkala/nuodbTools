@@ -152,17 +152,21 @@ def assemble_processes(domain):
              ])
   databases = request(domain=domain, path="/databases")
   hosts = request(domain=domain, path="/hosts")
+  for d_idx, database in enumerate(databases):
+    for p_idx, process in enumerate(database['processes']):
+      for host in hosts:
+        if process['agentid'] == host['id']:
+          curses.endwin()
+          databases[d_idx]['processes'][p_idx]['region'] = host['tags']['region']
   for database in databases:
-    for process in database['processes']:
+    for process in sorted(sorted(sorted(database['processes'], key= lambda process: process['type']), key=lambda process: process['hostname']), key=lambda process: process['region']):
       row = []
       if process['status'] != "RUNNING":
         row.append((process['dbname'], curses.color_pair(3)))
       else:
         row.append((process['dbname'], curses.color_pair(1)))
       row.append(process['hostname'])
-      for host in hosts:
-        if process['agentid'] == host['id']:
-          row.append((host['tags']['region'], curses.A_BOLD))
+      row.append((process['region'], curses.A_BOLD))
       row.append(str(process['port']))
       row.append((str(process['type']), curses.A_BOLD))
       row.append(str(process['pid']))
@@ -237,7 +241,7 @@ def latest_metric(data, default = "?", length=4, red_threshold=90, yellow_thresh
   else:
     return (str(value)[0:length], attr)
 
-def request(domain, action="GET", path = "/", data= None, timeout=3 ):
+def request(domain, action="GET", path = "/", data= None, timeout=1 ):
   try:
     return domain.rest_req(action, path, data, timeout)
   except:
