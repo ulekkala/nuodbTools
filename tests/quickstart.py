@@ -31,11 +31,17 @@ unittest_config_handle.close()
 class nuodbQuickstartTest(unittest.TestCase):
   @classmethod  
   def setUpClass(cls):
-    cluster(action="create", config_file=unittest_config_file, no_prompt=True)
+    try:
+      cluster(action="create", config_file=unittest_config_file, no_prompt=True)
+    except:
+      cluster(action="terminate", config_file=unittest_config_file, no_prompt=True)
+      os.remove(unittest_config_file)
+      raise
 
   @classmethod
   def tearDownClass(cls):
     cluster(action="terminate", config_file=unittest_config_file, no_prompt=True)
+    os.remove(unittest_config_file)
 
   @property
   def cluster_members(self):
@@ -43,7 +49,7 @@ class nuodbQuickstartTest(unittest.TestCase):
     zones = self.config['zones']
     cluster_name = self.config['domain_name']
     host_prefix =self.config['host_prefix']
-    if self.config['dns_domain'] == "nuodb":
+    if "dns_domain" not in self.config or self.config['dns_domain'] == "None" or self.config['dns_domain'] == None:
       dns_domain = "NuoDB"
     else:
       dns_domain = self.config['dns_domain']
