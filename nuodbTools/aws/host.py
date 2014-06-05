@@ -238,6 +238,8 @@ class Host:
 
   def dns_delete(self):
     zone = self.Route53Connection.get_zone(self.dns_domain)
+    if zone == None:
+      raise HostError("Cannot get Route53 connection to dns zone \"%s\"" % str(zone))
     for fqdn in [self.name]:
       if zone.find_records(fqdn, "A") != None:
         zone.delete_a(fqdn)
