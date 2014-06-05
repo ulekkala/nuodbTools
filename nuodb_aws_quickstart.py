@@ -355,14 +355,17 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
           c[key] = val.strip()
           
       #### test for license file
-      while not os.path.exists(c['license_file']) and len(c['license_file'].strip()) > 0:
-        print "Cannot find (on this local machine) the license key file %s. Please try again." % c['license_file']
-        print "Enter a space to skip using a license file."
-        val = raw_input("%s [%s] " % (params['license_file']['prompt'], params['license_file']['default']))
-        c['license_file'] = val
-        with open(c['license_file']) as f:
-          c['license'] = f.read()
-          f.close()
+      if len(c['license_file'].strip()) > 0:
+        c['license'] = ""
+      else:
+        while not os.path.exists(c['license_file']):
+          print "Cannot find (on this local machine) the license key file %s. Please try again." % c['license_file']
+          print "Enter a space to skip using a license file."
+          val = raw_input("%s [%s] " % (params['license_file']['prompt'], params['license_file']['default']))
+          c['license_file'] = val
+          with open(c['license_file']) as f:
+            c['license'] = f.read()
+            f.close()
           
       #### test for ssh key
       while not os.path.exists(c['ssh_keyfile']):
