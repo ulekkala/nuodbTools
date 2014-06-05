@@ -1,6 +1,6 @@
 import boto.ec2
 import boto.route53
-from paramiko import SSHClient, SFTPClient
+import paramiko 
 import base64, inspect, json, os, socket, string, sys, tempfile, time
 
 class Host:
@@ -42,7 +42,11 @@ class Host:
           self.update_data()
     # If tagging doesn't work, try ssh'ing to the machine and getting the info.
     if self.exists == False and self.is_port_available(22, self.name):
-      (r, stdout, stderr) = self.execute_command("curl http://169.254.169.254/latest/meta-data/instance-id")
+      try:
+        (r, stdout, stderr) = self.execute_command("curl http://169.254.169.254/latest/meta-data/instance-id")
+      except paramiko.AuthenticationException:
+        # If we are here then someone else has scooped up the IP address associated with a DNS record of ours. Don't proceed any further.
+        r=1
       if r == 0:
         for reservation in self.ec2Connection.get_all_reservations():
           for instance in reservation.instances:
@@ -167,7 +171,7 @@ class Host:
   def copy(self, local_file, remote_file):    
     if not hasattr(self, 'ssh_connection'):
         self.__get_ssh_connection()
-    sftp = SFTPClient.from_transport(self.ssh_connection.get_transport())
+    sftp = paramiko.SFTPClient.from_transport(self.ssh_connection.get_transport())
     sftp.put(local_file, remote_file)
     return True
 
@@ -175,16 +179,23 @@ class Host:
     if not self.exists:
       if userdata != None:
         self.userdata = userdata
-      interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
-      interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
+      if subnet == None: 
+        #interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids)
+        interface_collection = None
+      else:
+        interface = boto.ec2.networkinterface.NetworkInterfaceSpecification(subnet_id=subnet, groups=security_group_ids, associate_public_ip_address=getPublicAddress)
+        interface_collection = boto.ec2.networkinterface.NetworkInterfaceCollection(interface)
       if instance_type != "t1.micro" and self.ec2Connection.get_image(ami).root_device_type !='instance-store':
         xvdb = boto.ec2.blockdevicemapping.BlockDeviceType()
         xvdb.ephemeral_name = 'ephemeral0'
         bdm = boto.ec2.blockdevicemapping.BlockDeviceMapping()
         bdm['/dev/xvdb'] = xvdb
-        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm) 
       else:
-        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized) 
+        bdm = None
+      if interface_collection != None:
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, network_interfaces=interface_collection, ebs_optimized=ebs_optimized, block_device_map=bdm)
+      else:
+        reservation = self.ec2Connection.run_instances(ami, key_name=self.ssh_key, instance_type=instance_type, user_data=userdata, security_group_ids=security_group_ids, ebs_optimized=ebs_optimized, block_device_map=bdm) 
       self.exists = True
       for instance in reservation.instances:
         self.instance = instance
@@ -227,6 +238,8 @@ class Host:
 
   def dns_delete(self):
     zone = self.Route53Connection.get_zone(self.dns_domain)
+    if zone == None:
+      raise HostError("Cannot get Route53 connection to dns zone \"%s\"" % str(zone))
     for fqdn in [self.name]:
       if zone.find_records(fqdn, "A") != None:
         zone.delete_a(fqdn)
@@ -304,7 +317,7 @@ class Host:
       host = socket.gethostbyname(self.name)
     except:
       host = self.ext_ip
-    self.ssh_connection = SSHClient()
+    self.ssh_connection = paramiko.SSHClient()
     self.ssh_connection.set_missing_host_key_policy(TemporaryAddPolicy())
     # self.ssh_connection.load_system_host_keys()
     if self.ssh_keyfile != None:

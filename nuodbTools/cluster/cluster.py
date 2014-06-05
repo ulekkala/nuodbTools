@@ -34,7 +34,7 @@ class Cluster:
         if not os.path.exists(ssh_keyfile):
           raise Error("Can not find ssh private key %s" % self.ssh_keyfile)
       if dns_domain == None or dns_domain == "None" or dns_domain == "":
-        self.dns_domain = "nuoDB"
+        self.dns_domain = "NuoDB"
         self.dns_emulate = True
       else:
         self.dns_emulate = False
@@ -42,7 +42,7 @@ class Cluster:
       self.db = {}
       self.zones = {} #store our zone connections
     
-    def add_host(self, name, zone, ami = "", security_group_ids=[], subnets = [], agentPort = 48004 , subPortRange = 48005, nuodb_rpm_url = None):
+    def add_host(self, name, zone, ami = "", security_group_ids=[], subnets = [], agentPort = 48004 , subPortRange = 48005, nuodb_rpm_url = None, start_services = True):
       if zone not in self.zones:
         raise Error("You must connect to a zone first before you can add a host in that zone")
       if len(subnets) == 0:
@@ -77,12 +77,12 @@ class Cluster:
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'] =[agent_addr]
         elif len(self.db['customers'][self.cluster_name]['zones'][zone]['brokers']) < int(self.brokers_per_zone):
           isBroker = True
-          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": False, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
+          chef_data = {"nuodb": {"is_broker": True, "enableAutomation": True, "enableAutomationBootstrap": False, "autoconsole": {"brokers": ["localhost"]}, "webconsole": {"brokers": ["localhost"]}}}
           #self.db['customers'][self.cluster_name]['brokers'].append(agent_addr)
           self.db['customers'][self.cluster_name]['zones'][zone]['brokers'].append(agent_addr)
         else:
           isBroker = False
-          chef_data = {"nuodb": {"is_broker": False, "enableAutomation": False, "enableAutomationBootstrap": False}}
+          chef_data = {"nuodb": {"is_broker": False, "enableAutomation": True, "enableAutomationBootstrap": False}}
         #common Chef information
         chef_data["run_list"] = ["recipe[nuodb]"] 
         chef_data['nuodb']["port"] = agentPort
@@ -99,6 +99,7 @@ class Cluster:
         chef_data["nuodb"]['domain_password'] = self.domain_password
         if nuodb_rpm_url != None:
           chef_data["nuodb"]["download_url"] = nuodb_rpm_url
+        chef_data["nuodb"]["start_services"] = start_services
         stub[host]['chef_data'] = chef_data
       else:
         isBroker = stub[host]['chef_data']['nuodb']['is_broker']
@@ -169,7 +170,7 @@ class Cluster:
         
     def create_cluster(self, ebs_optimized = False):
       for host in self.get_hosts():
-        obj = self.get_host(host)
+        obj = self.get_host(host)['obj']
         zone = obj.region
         wait_for_health = False
         if obj.isBroker == True:
@@ -188,6 +189,8 @@ class Cluster:
           brokers = self.db['customers'][self.cluster_name]['zones'][zone]['brokers']
         print "%s: Setting peers to [%s]" % (host, ",".join(brokers))
         self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['brokers'] = brokers
+        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['autoconsole'] = {"brokers": brokers}
+        self.db['customers'][self.cluster_name]['zones'][zone]['hosts'][host]['chef_data']['nuodb']['webconsole']= {"brokers": brokers}
         self.__boot_host(host, zone, wait_for_health = wait_for_health, ebs_optimized = ebs_optimized)
       if self.dns_emulate:
         self.set_dns_emulation()
@@ -206,7 +209,7 @@ class Cluster:
       for zone in zones:
         hosts = self.get_hosts(zone=zone)
         for host in hosts:
-          host_obj = self.get_host(host)
+          host_obj = self.get_host(host)['obj']
           host_obj.dns_delete()
       
     def dump_db(self):
@@ -217,7 +220,10 @@ class Cluster:
         brokers = []
         for zone in self.get_zones():
           for broker in self.db['customers'][self.cluster_name]['zones'][zone]['brokers']:
-            brokers.append(broker)
+            if self.dns_emulate:
+              brokers.append(self.get_host(broker)['obj'].ext_ip)
+            else:
+              brokers.append(broker)
         return brokers
       except:
         return []
@@ -227,7 +233,7 @@ class Cluster:
       customer = split[1]
       zone = split[2]
       if host_id in self.db['customers'][customer]['zones'][zone]['hosts']:
-        return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]['obj']
+        return self.db['customers'][customer]['zones'][zone]['hosts'][host_id]
       else:
         raise Error("No host found with id of '%s'" % host_id)
     
@@ -263,7 +269,7 @@ class Cluster:
     def set_dns_emulation(self):
       host_list = []
       for host_id in self.get_hosts():
-        host = self.get_host(host_id)
+        host = self.get_host(host_id)['obj']
         host.update_data()
         print("Waiting for an IP for %s" % host.name),
         while len(host.ext_ip) == 0:
@@ -274,21 +280,27 @@ class Cluster:
         host_list.append([host.name, host.ext_ip])
       for host_id in self.get_hosts():
         host = self.get_host(host_id)
-        print ("Waiting for ssh on %s." % host.name),
-        while not host.is_port_available(22):
+        obj = host['obj']
+        print ("Waiting for ssh on %s." % obj.name),
+        while not obj.is_port_available(22):
           print ("."),
           time.sleep(5)
-        print ("Setting /etc/hosts on %s..." % host.name)
+        print ("Setting /etc/hosts on %s..." % obj.name)
+        command = "cat /etc/hosts"
+        (rc, etc_hosts_before, stderr) = obj.execute_command(command) 
         for line in host_list:
           hostname = line[0]
           ip = line[1]
           command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
-          (rc, stdout, stderr) = host.execute_command(command)
+          (rc, stdout, stderr) = obj.execute_command(command)
           if rc != 0:
-            print "Unable to set DNS emulation for %s: %s" % (host.name, stderr)
-        print "Restarting services..."
-        host.agent_action(action = "restart")
-        host.webconsole_action(action = "restart")
+            print "Unable to set DNS emulation for %s: %s" % (obj.name, stderr)
+        command = "cat /etc/hosts"
+        (rc, etc_hosts_after, stderr) = obj.execute_command(command) 
+        if host['chef_data']['nuodb']['start_services'] and etc_hosts_before != etc_hosts_after:
+          print "Restarting services..."
+          obj.agent_action(action = "restart")
+          obj.webconsole_action(action = "restart")
       
     def terminate_hosts(self, zone = None):
       if zone == None:
@@ -298,7 +310,7 @@ class Cluster:
       for zone in zones:
         hosts = self.get_hosts(zone=zone)
         for host in hosts:
-          host_obj = self.get_host(host)
+          host_obj = self.get_host(host)['obj']
           if host_obj.exists:
             print "Terminating %s" % host
             host_obj.terminate()

@@ -1,8 +1,9 @@
 /build
-/*config.json
+/*config.json*
 /dist
 *.egg-info
 *.pyc
 .*project
 *.test.py
+license.file
 

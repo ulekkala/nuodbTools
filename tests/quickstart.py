@@ -1,17 +1,27 @@
 import json
 import nuodbTools
+import os
 import tempfile
 import time
 import unittest
 import uuid
 from nuodb_aws_quickstart import cluster 
 
-config_file = "../config.json"
+config_file=None
+config_files = ["../config.json.unittest", "../config.json"]
 domain_name = str(uuid.uuid4())
+for possible_config_file in config_files:
+  if os.path.exists(possible_config_file) and config_file == None:
+    config_file = possible_config_file
+if config_file == None:
+  print "Cannot find a valid config file out of %s" % ",".join(config_files)
+  exit(2)
+  
 with open(config_file) as f:
   read_config = json.loads(f.read())
   f.close()
-read_config['domain_name'] = domain_name        
+read_config['domain_name'] = domain_name
+read_config['instance_type'] = "m3.medium"    
 unittest_config_handle = tempfile.NamedTemporaryFile(delete = False)
 unittest_config_handle.write(json.dumps(read_config, indent=2))
 unittest_config_file = unittest_config_handle.name
@@ -21,21 +31,32 @@ unittest_config_handle.close()
 class nuodbQuickstartTest(unittest.TestCase):
   @classmethod  
   def setUpClass(cls):
-    cluster(action="create", config_file=unittest_config_file)
+    try:
+      cluster(action="create", config_file=unittest_config_file, no_prompt=True)
+    except:
+      cluster(action="terminate", config_file=unittest_config_file, no_prompt=True)
+      os.remove(unittest_config_file)
+      raise
 
   @classmethod
   def tearDownClass(cls):
-    cluster(action="terminate", config_file=unittest_config_file)
+    cluster(action="terminate", config_file=unittest_config_file, no_prompt=True)
+    os.remove(unittest_config_file)
 
   @property
   def cluster_members(self):
     cluster_members = {}
     zones = self.config['zones']
     cluster_name = self.config['domain_name']
+    host_prefix =self.config['host_prefix']
+    if "dns_domain" not in self.config or self.config['dns_domain'] == "None" or self.config['dns_domain'] == None:
+      dns_domain = "NuoDB"
+    else:
+      dns_domain = self.config['dns_domain']
     for zone in zones:
       cluster_members[zone] = []
       for i in range(0, self.config['zones'][zone]['servers']):
-        cluster_members[zone].append("db%s.%s.%s.nuoDB" % (str(i), cluster_name, zone))
+        cluster_members[zone].append("%s%s.%s.%s.%s" % (host_prefix, str(i), cluster_name, zone, dns_domain))
     return cluster_members
   
   @property
