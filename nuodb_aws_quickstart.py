@@ -92,10 +92,16 @@ def get_instance_type():
 def get_zone_info(c):
   # Find our how many regions
   r = {}
+  
+  # open a Boto connection to get metadata
   aws_conn = nuodbTools.aws.Zone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
   available_zones = aws_conn.get_all_regions()
-  zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
-  # open a Boto connection to get metadata
+  if len(c['license']) != 0:
+    # No license, limited to 2 nodes. Limit customer to one region.
+    zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
+  else:
+    zone_count = 1
+    print "Choose your region:"
   
   if zone_count == len(available_zones):
     for zone in available_zones:
@@ -213,11 +219,16 @@ def get_zone_info(c):
 
 def get_zone_info_automatic(c):
   r= {}
+  # open a Boto connection to get metadata
   aws_conn = nuodbTools.aws.Zone("us-east-1").connect(c["aws_access_key"], c["aws_secret"])
   available_zones = aws_conn.get_all_regions()
-  zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
-  # open a Boto connection to get metadata
-  
+  if len(c['license']) != 0:
+    # No license, limited to 2 nodes. Limit customer to one region.
+    zone_count = user_prompt("How many AWS regions? (1-%s)? " % len(available_zones), range(1, len(available_zones) + 1))
+  else:
+    zone_count = 1
+    print "Choose your region:"
+
   if zone_count == len(available_zones):
     for zone in available_zones:
       r[zone.name] = {}
@@ -291,6 +302,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
   params = {
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?", "accept": "^[A-Za-z0-9]*$", "input_error": "Please check your AWS Access key"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
+            "license": {"default": "", "prompt": "Please enter your NuoDB license (No license limits NuoDB to 2 hosts):"},
             "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in Amazon in all the regions you want to start instances:"},
             "ssh_keyfile": {"default": "%s/.ssh/id_rsa" % os.environ['HOME'], "prompt": "Enter the location on this local machine of the private key used for ssh. Please use the absolute path: "},
             "alert_email" : {"default" : "", "prompt" : "What email address would you like health alerts sent to?", "accept": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$", "input_error": "Please enter a valid email address"}
@@ -300,7 +312,6 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
             "domain_name": {"default": "nuodb", "prompt": "What is the name of your NuoDB domain?", "accept": "^[a-zA-Z1-9]*$", "input_error": "Acceptable domain names contain only letters and numbers"},
             "domain_password": {"default": "bird", "prompt": "What is the admin password of your NuoDB domain?"},
             "host_prefix": {"default": "host", "prompt": "What string should preface the number of each host? (ex. {host}0.mycluster.region.nuoDB)", "accept": "^[A-Za-z]$", "input_error": "Please enter a series of only letters and numbers"},
-            "license": {"default": "", "prompt": "Please enter your NuoDB license- or leave empty for development version:"},
             "load_drivers": {"default" : 0, "prompt": "How many extra hosts (that do not join the cluster) do you want in each region for load driving?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "brokers_per_zone": {"default" : 1, "prompt": "How many brokers do you want in each region?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "custom_rpm" : {"default" : "", "prompt": "Use alternative installation package? Empty for default: "}
@@ -396,6 +407,8 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         else:
           res = "n"
           while res != "y":
+            if len(c['license']) == 0:
+              print "WARNING: Without a license you will be limited to 2 nodes in the domain."
             c["zones"] = get_zone_info(c)
             print "Here is your zone info:"
             for zone in sorted(c["zones"].keys()):
@@ -423,6 +436,14 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         if key not in c:
           c[key] = verbose_params[key]['default']
           print "Parameter \"%s\" missing from %s. Using default of \"%s\"" %(key, config_file, str(c[key]))
+      if len(c['license']) == 0:
+        count=0
+        for zone in c['zones']:
+          count += c['zones'][zone]['servers']
+        if count > 2:
+          print "ERROR: You have not specified a license so your NuoDB cluster is limited to 2 nodes. Using %d will cause %d nodes to fail." % (count, count-2)
+          print "Please add a license or reduce the number of nodes and try again."
+          exit(2)
     
     if debug:
       print json.dumps(c, indent=2)
@@ -483,6 +504,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
       print "======================================================================="
       print "SUCCESS."
       print "You can now access the web console at %s " % str(good_host)
+      print "Your domain username is \"domain\" and your password is \"%s\"" % c['domain_password']
       print "Your brokers are:"
       for broker in mycluster.get_brokers():
         print "  " + broker
