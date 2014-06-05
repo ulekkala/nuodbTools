@@ -286,6 +286,8 @@ class Cluster:
           print ("."),
           time.sleep(5)
         print ("Setting /etc/hosts on %s..." % obj.name)
+        command = "cat /etc/hosts"
+        (rc, etc_hosts_before, stderr) = obj.execute_command(command) 
         for line in host_list:
           hostname = line[0]
           ip = line[1]
@@ -293,7 +295,9 @@ class Cluster:
           (rc, stdout, stderr) = obj.execute_command(command)
           if rc != 0:
             print "Unable to set DNS emulation for %s: %s" % (obj.name, stderr)
-        if host['chef_data']['nuodb']['start_services']:
+        command = "cat /etc/hosts"
+        (rc, etc_hosts_after, stderr) = obj.execute_command(command) 
+        if host['chef_data']['nuodb']['start_services'] and etc_hosts_before != etc_hosts_after:
           print "Restarting services..."
           obj.agent_action(action = "restart")
           obj.webconsole_action(action = "restart")
