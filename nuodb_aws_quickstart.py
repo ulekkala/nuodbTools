@@ -365,7 +365,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
           c['license_file'] = val.strip()
         if len(c['license_file']) > 0:
           with open(c['license_file']) as f:
-            c['license'] = f.read()
+            c['license'] = f.read().strip()
             f.close()
         else:
           c['license'] = ""
@@ -423,8 +423,9 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         else:
           res = "n"
           while res != "y":
-            if len(c['license']) == 0:
+            if "license" not in c or len(c['license']) == 0:
               print "WARNING: Without a license you will be limited to 2 nodes in the domain."
+              c['license'] = ""
             c["zones"] = get_zone_info(c)
             print "Here is your zone info:"
             for zone in sorted(c["zones"].keys()):
