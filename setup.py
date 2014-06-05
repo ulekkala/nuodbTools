@@ -4,7 +4,7 @@ import sys
 v = sys.version_info
 if v[0] == 2 and v[1] == 7:
   setup(name='nuodbTools',
-        version='0.1.4',
+        version='0.2.0',
         description='Various tools to deploy, manintain and monitor NuoDB',
         url='http://github.com/nuodb/nuodbTools',
         author='NuoDB Inc.',
