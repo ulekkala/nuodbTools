@@ -302,7 +302,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
   params = {
             "aws_access_key": {"default" : "", "prompt" : "What is your AWS access key?", "accept": "^[A-Za-z0-9]*$", "input_error": "Please check your AWS Access key"},
             "aws_secret": {"default" : "", "prompt" : "What is your AWS secret?"},
-            "license": {"default": "", "prompt": "Please enter your NuoDB license (No license limits NuoDB to 2 hosts):"},
+            "license_file": {"default": "", "prompt": "Please enter a file containing your NuoDB license (No license limits NuoDB to 2 hosts):"},
             "ssh_key": {"default": "", "prompt": "Enter your ssh keypair name that exists in Amazon in all the regions you want to start instances:"},
             "ssh_keyfile": {"default": "%s/.ssh/id_rsa" % os.environ['HOME'], "prompt": "Enter the location on this local machine of the private key used for ssh. Please use the absolute path: "},
             "alert_email" : {"default" : "", "prompt" : "What email address would you like health alerts sent to?", "accept": "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$", "input_error": "Please enter a valid email address"}
@@ -354,10 +354,20 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
               val = raw_input("%s [%s] " % (params[key]['prompt'], default))
           c[key] = val.strip()
           
+      #### test for license file
+      while not os.path.exists(c['license_file']) and len(c['license_file'].strip()) > 0:
+        print "Cannot find (on this local machine) the license key file %s. Please try again." % c['license_file']
+        print "Enter a space to skip using a license file."
+        val = raw_input("%s [%s] " % (params['license_file']['prompt'], params['license_file']['default']))
+        c['license_file'] = val
+        with open(c['license_file']) as f:
+          c['license'] = f.read()
+          f.close()
+          
       #### test for ssh key
       while not os.path.exists(c['ssh_keyfile']):
         print "Cannot find (on this local machine) the ssh private key %s. Please try again." % c['ssh_keyfile']
-        val = raw_input("%s [%s] " % (params['ssh_keyfile']['prompt'], default))
+        val = raw_input("%s [%s] " % (params['ssh_keyfile']['prompt'], params['ssh_keyfile']['default']))
         c['ssh_keyfile'] = val
   
       #### Get Instance type
