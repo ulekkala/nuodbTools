@@ -353,22 +353,25 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
               print "ERROR: " + params[key]['input_error']
               val = raw_input("%s [%s] " % (params[key]['prompt'], default))
           c[key] = val.strip()
-          
+      
       #### test for license file
-      if len(c['license_file'].strip()) > 0:
+      if "license_file" in c and (c['license_file'] == None or len(c['license_file'].strip()) == 0):
         c['license'] = ""
       else:
-        while not os.path.exists(c['license_file']):
+        while not os.path.isfile(c['license_file']) and len(c['license_file'].strip()) > 0:
           print "Cannot find (on this local machine) the license key file %s. Please try again." % c['license_file']
-          print "Enter a space to skip using a license file."
-          val = raw_input("%s [%s] " % (params['license_file']['prompt'], params['license_file']['default']))
-          c['license_file'] = val
+          print "Press enter to skip using a license file."
+          val = raw_input("%s [%s] " % (params['license_file']['prompt'], ""))
+          c['license_file'] = val.strip()
+        if len(c['license_file']) > 0:
           with open(c['license_file']) as f:
             c['license'] = f.read()
             f.close()
+        else:
+          c['license'] = ""
           
       #### test for ssh key
-      while not os.path.exists(c['ssh_keyfile']):
+      while not os.path.isfile(c['ssh_keyfile']):
         print "Cannot find (on this local machine) the ssh private key %s. Please try again." % c['ssh_keyfile']
         val = raw_input("%s [%s] " % (params['ssh_keyfile']['prompt'], params['ssh_keyfile']['default']))
         c['ssh_keyfile'] = val
