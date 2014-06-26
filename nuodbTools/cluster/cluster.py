@@ -272,7 +272,7 @@ class Cluster:
         host = self.get_host(host_id)['obj']
         host.update_data()
         print("Waiting for an IP for %s" % host.name),
-        while len(host.ext_ip) == 0:
+        while host.ext_ip == None or len(host.ext_ip) == 0:
           print ("."),
           time.sleep(5)
           host.update_data()
@@ -282,25 +282,64 @@ class Cluster:
         host = self.get_host(host_id)
         obj = host['obj']
         print ("Waiting for ssh on %s." % obj.name),
-        while not obj.is_port_available(22):
+        count = 60
+        while not obj.is_port_available(22) and count >= 0:
           print ("."),
           time.sleep(5)
-        print ("Setting /etc/hosts on %s..." % obj.name)
-        command = "cat /etc/hosts"
-        (rc, etc_hosts_before, stderr) = obj.execute_command(command) 
-        for line in host_list:
-          hostname = line[0]
-          ip = line[1]
-          command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
-          (rc, stdout, stderr) = obj.execute_command(command)
-          if rc != 0:
-            print "Unable to set DNS emulation for %s: %s" % (obj.name, stderr)
-        command = "cat /etc/hosts"
-        (rc, etc_hosts_after, stderr) = obj.execute_command(command) 
-        if host['chef_data']['nuodb']['start_services'] and etc_hosts_before != etc_hosts_after:
-          print "Restarting services..."
-          obj.agent_action(action = "restart")
-          obj.webconsole_action(action = "restart")
+          count -= 1
+        print
+        if count == 0:
+          print "ERROR: Gave up on %s after %d seconds because it could not be contacted. This server may not work properly." % (obj.name, 60*5)
+        else:
+          print ("Setting /etc/hosts on %s..." % obj.name)
+          command = "cat /etc/hosts"
+          (rc, etc_hosts_before, stderr) = obj.execute_command(command) 
+          for line in host_list:
+            hostname = line[0]
+            ip = line[1]
+            command = "sudo awk -v s=\"%s    %s\" '/%s/{f=1;$0=s}7;END{if(!f)print s}' /etc/hosts > /tmp/hosts && sudo chown root:root /tmp/hosts && sudo chmod 644 /tmp/hosts && sudo mv /tmp/hosts /etc/hosts" % (ip, hostname, hostname)
+            (rc, stdout, stderr) = obj.execute_command(command)
+            if rc != 0:
+              print "Unable to set DNS emulation for %s: %s" % (obj.name, stderr)
+          command = "cat /etc/hosts"
+          (rc, etc_hosts_after, stderr) = obj.execute_command(command) 
+          if host['chef_data']['nuodb']['start_services'] and etc_hosts_before != etc_hosts_after:
+            print "Restarting services..."
+            count = 5
+            ok = False
+            while count != 0 and not ok:
+              try:
+                obj.agent_action(action = "restart")
+                ok=True
+              except:
+                time.sleep(5)
+                count -= 1
+            if count == 0:
+              raise
+            count = 5
+            ok = False
+            while count != 0 and not ok:
+              try:
+                obj.webconsole_action(action = "restart")
+                ok=True
+              except:
+                time.sleep(5)
+                count -= 1
+            if count == 0:
+              raise
+            count = 5
+            ok = False
+            while count != 0 and not ok:
+              try:
+                obj.autoconsole_action(action = "restart")
+                ok=True
+              except:
+                time.sleep(5)
+                count -= 1
+            if count == 0:
+              raise
+          
+          
       
     def terminate_hosts(self, zone = None):
       if zone == None:
