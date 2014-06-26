@@ -7,9 +7,11 @@ import argparse
 import nuodbTools
 import sys
 import fcntl
+import random
 import termios
 import time
 import struct
+from threading import Thread
 import traceback
 import curses
 
@@ -150,27 +152,30 @@ def assemble_processes(domain):
              ("TYPE", curses.A_REVERSE),
              ("PID", curses.A_REVERSE)
              ])
-  databases = request(domain=domain, path="/databases")
-  hosts = request(domain=domain, path="/hosts")
-  for d_idx, database in enumerate(databases):
-    for p_idx, process in enumerate(database['processes']):
-      for host in hosts:
-        if process['agentid'] == host['id']:
-          curses.endwin()
-          databases[d_idx]['processes'][p_idx]['region'] = host['tags']['region']
-  for database in databases:
-    for process in sorted(sorted(sorted(database['processes'], key= lambda process: process['type']), key=lambda process: process['hostname']), key=lambda process: process['region']):
-      row = []
-      if process['status'] != "RUNNING":
-        row.append((process['dbname'], curses.color_pair(3)))
-      else:
-        row.append((process['dbname'], curses.color_pair(1)))
-      row.append(process['hostname'])
-      row.append((process['region'], curses.A_BOLD))
-      row.append(str(process['port']))
-      row.append((str(process['type']), curses.A_BOLD))
-      row.append(str(process['pid']))
-      rows.append(row)
+  try:
+    databases = request(domain=domain, path="/databases")
+    hosts = request(domain=domain, path="/hosts")
+  except:
+    rows.append(["ERROR", "FETCHING", "DATA"])
+  else:
+    for d_idx, database in enumerate(databases):
+      for p_idx, process in enumerate(database['processes']):
+        for host in hosts:
+          if process['agentid'] == host['id']:
+            databases[d_idx]['processes'][p_idx]['region'] = host['tags']['region']
+    for database in databases:
+      for process in sorted(sorted(sorted(database['processes'], key= lambda process: process['type']), key=lambda process: process['hostname']), key=lambda process: process['region']):
+        row = []
+        if process['status'] != "RUNNING":
+          row.append((process['dbname'], curses.color_pair(3)))
+        else:
+          row.append((process['dbname'], curses.color_pair(1)))
+        row.append(process['hostname'])
+        row.append((process['region'], curses.A_BOLD))
+        row.append(str(process['port']))
+        row.append((str(process['type']), curses.A_BOLD))
+        row.append(str(process['pid']))
+        rows.append(row)
   return rows
 
 def assemble_queries(domain):
@@ -251,6 +256,39 @@ def size():
   lines, cols = struct.unpack('hh',  fcntl.ioctl(sys.stdout, termios.TIOCGWINSZ, '1234'))
   return (lines,cols)
 
+def malingerer(seconds=10):
+  time.sleep(seconds)
+  rows = []
+  rows.append([
+               ("Malingered for", curses.A_REVERSE),
+               str(seconds), "seconds"
+               ])
+  return rows
+
+def fork_thread(mode, domain):
+  if mode == "info":
+    t = ThreadWithReturnValue(target=assemble_info, args=(domain,))
+  elif mode =="databases":
+    t = ThreadWithReturnValue(target=assemble_databases, args = (domain,))
+  elif mode == "processes":
+    t = ThreadWithReturnValue(target=assemble_processes, args= (domain,))
+  elif mode == "queries":
+    t = ThreadWithReturnValue(target=assemble_queries, args=(domain,))
+  else:
+    t = ThreadWithReturnValue(target=assemble_hosts, args=(domain,))
+  return t
+
+class ThreadWithReturnValue(Thread):
+  def __init__(self, group=None, target=None, name=None, args=(), kwargs={}, Verbose=None):
+    Thread.__init__(self, group, target, name, args, kwargs, Verbose)
+    self._return = None
+  def run(self):
+    if self._Thread__target is not None:
+      self._return = self._Thread__target(*self._Thread__args, **self._Thread__kwargs)
+  def join(self):
+    Thread.join(self)
+    return self._return
+
 class Window:
   def __init__(self, height, width, starty, startx):
     self.object = curses.newwin(height, width, starty, startx)
@@ -318,14 +356,14 @@ class Window:
             self.write(" ")
         self.write(" ")
       self.newline()
-          
+       
 parser = argparse.ArgumentParser(description=description)
 parser.add_argument("-s", "--server", dest='host', action='store', help="server address running REST service", default="localhost")
 parser.add_argument("-p", "--port", dest='port', action='store', help="server port running REST service", default=8888, type=int)
 parser.add_argument("-u", "--user", dest='user', action='store', help="domain username", default="domain")
 parser.add_argument("--password", dest='password', action='store', help="domain password", default="bird")
 parser.add_argument("-i", "--compute-interval", dest='metric_interval', action='store', help="When computing metric data use data from the last N seconds", default=10, type=int)
-parser.add_argument("-d", dest='debug', action='store_true')
+parser.add_argument("-d", "--debug",  dest='debug', action='store_true')
 args = parser.parse_args()
   
 metric_interval = args.metric_interval # seconds
@@ -335,6 +373,7 @@ host=args.host
 port=args.port
 rest_url = "http://%s:%s/api" % (host, str(port))
 iteration = 0 
+data_thread = None
 try:
   domain = nuodbTools.cluster.Domain(rest_url=rest_url, rest_username = user, rest_password = password)
   domain.rest_req(path="/databases")
@@ -350,7 +389,7 @@ try:
   curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
   curses.init_pair(4, curses.COLOR_CYAN, curses.COLOR_BLACK)
   curses.noecho()
-  curses.halfdelay(25)
+  curses.halfdelay(10)
   i = 410
   oldmode=None
   mode="hosts"
@@ -358,7 +397,7 @@ try:
   render_times = []
   while i != 101:
     mytime = int(time.time()) * 1000
-    start_time = time.time()
+    
     
     if i == 410:
       # redraw screen
@@ -386,43 +425,45 @@ try:
       windows['left'].clear()
       windows['left'].writeline("Loading...", curses.color_pair(4))
       windows['footer'].clear()
+      data_thread = None
+      rows = None
+      if mode == "processes":
+        windows['footer'].write("Processes in ")
+        windows['footer'].write("RED", curses.color_pair(3))
+        windows['footer'].write(" are in nonstandard state")
+      elif mode == "hosts":
+        windows['footer'].write("Hostnames in ")
+        windows['footer'].write("GREEN", curses.color_pair(1))
+        windows['footer'].write(" are brokers")
     
     for window in windows:
       windows[window].refresh()
     iteration += 1
     
-    if mode == "info":
-      rows = assemble_info(domain)
-    elif mode =="databases":
-      rows = assemble_databases(domain)
-    elif mode == "processes":
-      rows = assemble_processes(domain)
+    if data_thread == None:
+      data_thread = fork_thread(mode, domain)
+      data_thread.start()
+      start_time = time.time()
+    elif not data_thread.is_alive():
+      rows = data_thread.join()
+      data_thread = fork_thread(mode, domain)
+      data_thread.start()
+      start_time = time.time()
+
+    if args.debug:
       windows['footer'].clear()
-      windows['footer'].write("Processes in ")
-      windows['footer'].write("RED", curses.color_pair(3))
-      windows['footer'].write(" are in nonstandard state")
-    elif mode == "queries":
-      rows = assemble_queries(domain)
-    else:
-      rows = assemble_hosts(domain)
-      windows['footer'].clear()
-      windows['footer'].write("Hostnames in ")
-      windows['footer'].write("GREEN", curses.color_pair(1))
-      windows['footer'].write(" are brokers")
-      
+      elapsed_time = time.time() - start_time
+      windows['footer'].writeline("data fetch time: %d mode: %s" % (elapsed_time, mode))
     end_time = time.time()
     if mode != "info":
       render_time = end_time - start_time
       render_times.append(int(render_time))
-    if args.debug:
-      # Reset the bottom
-      windows['footer'].clear()
-      windows['footer'].writeline("page render time: %d" % render_time)
-    windows['left'].clear()
-    windows['left'].write_table(rows)
-    windows['left'].refresh()
+      
+    if rows != None:
+      windows['left'].clear()
+      windows['left'].write_table(rows)
+      windows['left'].refresh()
     i = screen.getch()
-    curses.flash()
     oldmode=mode
   curses.endwin()
 except KeyboardInterrupt:
