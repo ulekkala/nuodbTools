@@ -164,6 +164,12 @@ class Host:
     else:
       return (actual_device, volume.id)
         
+  def autoconsole_action(self, action):
+    command = "sudo service nuoautoconsole " + action
+    (rc, stdout, stderr) = self.execute_command(command)
+    if rc != 0:
+      return "Failed to %s nuoautoconsole with command %s: %s" % (action, command, stderr)
+    
   def console_action(self, action):
         command = "sudo service nuoautoconsole " + action
         if self.execute_command(command)[0] != 0:
