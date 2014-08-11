@@ -311,7 +311,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
             "dns_domain": {"default" : "None", "prompt" : "Enter a Route53 domain under your account. If you don't have one enter \"None\":"},
             "domain_name": {"default": "nuodb", "prompt": "What is the name of your NuoDB domain?", "accept": "^[a-zA-Z1-9]*$", "input_error": "Acceptable domain names contain only letters and numbers"},
             "domain_password": {"default": "bird", "prompt": "What is the admin password of your NuoDB domain?"},
-            "host_prefix": {"default": "host", "prompt": "What string should preface the number of each host? (ex. {host}0.mycluster.region.nuoDB)", "accept": "^[A-Za-z]$", "input_error": "Please enter a series of only letters and numbers"},
+            "host_prefix": {"default": "host", "prompt": "What string should preface the number of each host? (ex. {host}0.mycluster.region.nuoDB)", "accept": "^[A-Za-z]*$", "input_error": "Please enter a series of letters only"},
             "load_drivers": {"default" : 0, "prompt": "How many extra hosts (that do not join the cluster) do you want in each region for load driving?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "brokers_per_zone": {"default" : 1, "prompt": "How many brokers do you want in each region?", "accept": "^[1-9]$", "input_error": "Please enter a number between 1 and 9"},
             "custom_rpm" : {"default" : "", "prompt": "Use alternative installation package? Empty for default: "}
@@ -365,7 +365,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
           c['license_file'] = val.strip()
         if len(c['license_file']) > 0:
           with open(c['license_file']) as f:
-            c['license'] = f.read()
+            c['license'] = f.read().strip()
             f.close()
         else:
           c['license'] = ""
@@ -392,7 +392,7 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         # ## Populate zone data
         for key in sorted(verbose_params.keys()):
           default = str(verbose_params[key]['default'])
-          val = raw_input("%s [%s] " % (verbose_params[key]['prompt'], default))
+          val = raw_input("%s [%s] " % (verbose_params[key]['prompt'], default)).strip()
           if len(val) == 0:
             c[key] = verbose_params[key]['default']
           elif len(val.strip()) == 0:
@@ -423,8 +423,9 @@ def cluster(action=None, config_file=None, debug=False, ebs_optimized=False, adv
         else:
           res = "n"
           while res != "y":
-            if len(c['license']) == 0:
+            if "license" not in c or len(c['license']) == 0:
               print "WARNING: Without a license you will be limited to 2 nodes in the domain."
+              c['license'] = ""
             c["zones"] = get_zone_info(c)
             print "Here is your zone info:"
             for zone in sorted(c["zones"].keys()):
