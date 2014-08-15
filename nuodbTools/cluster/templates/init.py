@@ -28,6 +28,10 @@ def get_public_hostname():
   url = "http://169.254.169.254/latest/meta-data/public-hostname"
   return urllib2.urlopen(url).read()
 
+def get_public_ip():
+  url = "http://169.254.169.254/latest/meta-data/public-ip"
+  return urllib2.urlopen(url).read()
+
 def mail(destination = "$email_address", msg = "", subject = "Failure starting host $hostname"):
   command = "echo %s | mail -s %s %s" % (msg, subject, destination)
   execute(command)
@@ -37,7 +41,8 @@ for command in commands:
   # ignore errors
   
 ohai = json.loads(execute("/usr/bin/ohai")[1])
-public_ip = get_public_hostname()
+public_hostname = get_public_hostname()
+public_ip = get_public_ip()
 if execute("grep -c $hostname /etc/hosts")[0] != 0:
     f = open("/etc/hosts", "a")
     f.write("\t".join([public_ip, "$hostname" + "\n"]))
