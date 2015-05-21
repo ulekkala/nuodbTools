@@ -186,12 +186,3 @@ elif args.action == "uninstall":
     print "Killing %s" % str(pid)
     subprocess.call(["kill", "-9", pid])
   shutil.rmtree(args.directory)
-    
-
-
-
-
-
-
-
-
